@@ -1,0 +1,90 @@
+# Example workflow configuration
+workflows:
+  - name: data_extraction_workflow
+    description: Extract and process data from multiple sources
+    version: "1.0"
+    steps:
+      - name: extract_data
+        type: code_execution
+        config:
+          code: |
+            # Extract data
+            data = {"items": [1, 2, 3, 4, 5]}
+            print(f"Extracted {len(data['items'])} items")
+        on_error: skip
+      
+      - name: process_data
+        type: code_execution
+        config:
+          code: |
+            # Process data
+            processed = [x * 2 for x in data['items']]
+            print(f"Processed {len(processed)} items")
+        on_error: stop
+      
+      - name: save_results
+        type: code_execution
+        config:
+          code: |
+            # Save results
+            import json
+            with open("workspace/results.json", "w") as f:
+              json.dump({"processed": processed}, f)
+            print("Results saved")
+    
+    variables:
+      output_dir: "./workspace"
+    
+    guardrails:
+      enabled: true
+      strict_mode: false
+
+  - name: form_filling_workflow
+    description: Fill a government form with extracted data
+    version: "1.0"
+    steps:
+      - name: extract_form_data
+        type: code_execution
+        config:
+          code: |
+            # Extract form data from source
+            form_data = {
+              "name": "John Doe",
+              "email": "john@example.com",
+              "address": "123 Main St"
+            }
+            print("Form data extracted")
+      
+      - name: validate_data
+        type: code_execution
+        config:
+          code: |
+            # Validate form data
+            required_fields = ["name", "email", "address"]
+            for field in required_fields:
+              if field not in form_data:
+                raise ValueError(f"Missing required field: {field}")
+            print("Data validated")
+      
+      - name: fill_form
+        type: code_execution
+        config:
+          code: |
+            # Fill form fields
+            for field, value in form_data.items():
+              fill_field(field, value)
+            print("Form filled")
+      
+      - name: submit_form
+        type: code_execution
+        config:
+          code: |
+            # Submit form
+            submit_form()
+            print("Form submitted")
+    
+    guardrails:
+      enabled: true
+      pii_detection: true
+      tokenization: true
+
