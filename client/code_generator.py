@@ -185,7 +185,7 @@ print(f"{tool_name}() = {{result}}")"""
         self,
         required_tools: Dict[str, List[str]],
         task_description: str,
-        task_specific_calls: Optional[Dict[str, List[str]]] = None,
+        task_specific_calls: Optional[Dict[str, str]] = None,
         header_comment: Optional[str] = None,
     ) -> str:
         """Generate complete Python code for tool usage.
@@ -251,6 +251,11 @@ print(f"{tool_name}() = {{result}}")"""
             else "# No tools needed for this task"
         )
         usage_str = chr(10).join(usage) if usage else "# No usage code generated"
+        
+        # Add file operations if task mentions saving/reading files
+        file_ops = self._generate_file_operations(task_description)
+        if file_ops:
+            usage_str = usage_str + "\n\n" + file_ops
 
         code = (
             header
@@ -262,3 +267,77 @@ print(f"{tool_name}() = {{result}}")"""
         )
 
         return code
+    
+    def _generate_file_operations(self, task_description: str) -> str:
+        """Generate file operation code if task mentions file operations."""
+        task_lower = task_description.lower()
+        file_ops = []
+        
+        # Check for file save operations
+        if "save" in task_lower and ("file" in task_lower or "workspace" in task_lower):
+            # Extract filename from task
+            import re
+            # Look for patterns like "save ... to a file called 'workspace/result.txt'"
+            filename_match = re.search(r"(?:file|called|to)\s+['\"]([^'\"]+)['\"]", task_description)
+            if filename_match:
+                filename = filename_match.group(1)
+                # Ensure it starts with /workspace if it's a workspace file
+                if not filename.startswith("/workspace") and "workspace" in filename:
+                    filename = "/workspace/" + filename.replace("workspace/", "").lstrip("/")
+                elif not filename.startswith("/") and "workspace" not in filename:
+                    filename = "/workspace/" + filename
+                
+                # Check if we need to save a calculation result
+                if "calculate" in task_lower or "result" in task_lower:
+                    file_ops.append(f"""# Save result to file
+import os
+os.makedirs(os.path.dirname("{filename}"), exist_ok=True)
+with open("{filename}", "w") as f:
+    f.write(str(result))
+print(f"✅ Saved result to {filename}")""")
+                else:
+                    file_ops.append(f"""# Save to file
+import os
+os.makedirs(os.path.dirname("{filename}"), exist_ok=True)
+with open("{filename}", "w") as f:
+    f.write("result")
+print(f"✅ Saved to {filename}")""")
+        
+        # Check for file read operations
+        if "read" in task_lower and ("file" in task_lower or "workspace" in task_lower):
+            # Extract filename from task
+            import re
+            filename_match = re.search(r"(?:file|called|from)\s+['\"]([^'\"]+)['\"]", task_description)
+            if filename_match:
+                filename = filename_match.group(1)
+                if not filename.startswith("/workspace") and "workspace" in filename:
+                    filename = "/workspace/" + filename.replace("workspace/", "").lstrip("/")
+                elif not filename.startswith("/") and "workspace" not in filename:
+                    filename = "/workspace/" + filename
+                
+                file_ops.append(f"""# Read file back
+try:
+    with open("{filename}", "r") as f:
+        content = f.read()
+    print(f"✅ Read from {filename}: {{content}}")
+except FileNotFoundError:
+    print(f"❌ File {filename} not found")
+except Exception as e:
+    print(f"❌ Error reading {filename}: {{e}}")""")
+        
+        # Check for mount verification
+        if "mounted" in task_lower or "mount" in task_lower:
+            file_ops.append("""# Check if /workspace is mounted
+import os
+workspace_path = "/workspace"
+if os.path.exists(workspace_path):
+    print(f"✅ {workspace_path} exists and is mounted")
+    try:
+        contents = os.listdir(workspace_path)
+        print(f"   Contents: {contents}")
+    except Exception as e:
+        print(f"   Error listing contents: {e}")
+else:
+    print(f"❌ {workspace_path} does not exist (mount may have failed)")""")
+        
+        return "\n".join(file_ops) if file_ops else ""

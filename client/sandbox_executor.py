@@ -88,6 +88,15 @@ class SandboxExecutor(CodeExecutor):
             # Prepare workspace with required directories before sandbox creation
             workspace_path = Path(self.execution_config.workspace_dir)
             workspace_path.mkdir(parents=True, exist_ok=True)
+            
+            # Ensure client, servers, and skills directories are clean
+            # This prevents stale empty directories from interfering with volume mounts
+            for subdir in ["client", "servers", "skills"]:
+                subdir_path = workspace_path / subdir
+                if subdir_path.exists() and not any(subdir_path.iterdir()):
+                    # Remove empty directories to ensure fresh state
+                    subdir_path.rmdir()
+                    logger.debug(f"Removed empty {subdir_path}")
 
             # Get absolute paths for source directories
             # Read directly from source - no need to copy to workspace first
@@ -98,154 +107,321 @@ class SandboxExecutor(CodeExecutor):
             project_root = workspace_path.parent.resolve()
             client_path = project_root / "client"
 
-            # Read files directly from source directories and embed in setup code
-            # Files are written into sandbox for execution (sandbox is isolated)
-            # State files created by code should be written to workspace (persistent)
-            # Note: microsandbox Rust core supports volumes via patch_with_virtiofs_mounts,
-            # but Python API doesn't expose this yet. For now, we copy workspace files in.
-            # TODO: Extend PythonSandbox.create() to support volumes parameter
-            async with PythonSandbox.create(name="code-execution") as sandbox:
-                import asyncio
-
-                try:
-                    # First run: Write files into sandbox
-                    # Read directly from source directories (servers, client, skills)
-                    # Embed in setup code and write into sandbox so they're importable
-                    setup_code = self._generate_copy_code(
-                        servers_path=servers_path,
-                        client_path=client_path,
-                        skills_path=skills_path,
-                    )
-                    setup_result = await asyncio.wait_for(sandbox.run(setup_code), timeout=15.0)
-                    setup_output = await setup_result.output()
-
-                    # Check for setup errors
-                    if setup_output and "Setup error:" in setup_output:
-                        return setup_output, setup_output
-
-                    # Copy workspace files into sandbox (for state persistence)
-                    # This allows code to read previous state
-                    workspace_files_code = self._generate_workspace_copy_in_code(workspace_path)
-                    if workspace_files_code:
-                        workspace_setup_result = await asyncio.wait_for(
-                            sandbox.run(workspace_files_code), timeout=10.0
-                        )
-                        workspace_setup_output = await workspace_setup_result.output()
-                        if workspace_setup_output and "Setup error:" in workspace_setup_output:
-                            return workspace_setup_output, workspace_setup_output
-
-                    # Second run: Execute the task code
-                    # Files copied in first run are now available in sandbox
-                    exec_result = await asyncio.wait_for(sandbox.run(code), timeout=30.0)
-                    # Get output
-                    output = await exec_result.output()
-                    error = None
-
-                    # Copy workspace files back from sandbox (for state persistence)
-                    # This saves state created during execution
-                    workspace_sync_code = self._generate_workspace_sync_code(workspace_path)
-                    if workspace_sync_code:
-                        try:
-                            sync_result = await asyncio.wait_for(
-                                sandbox.run(workspace_sync_code), timeout=10.0
-                            )
-                            sync_output = await sync_result.output()
-                            # Sync output is informational, not critical
-                        except Exception as e:
-                            logger.warning(f"Workspace sync failed (non-critical): {e}")
-
-                    # Combine setup and execution output (only if setup had important output)
-                    if setup_output and setup_output.strip() and "Setup error:" in setup_output:
-                        output = setup_output + "\n" + (output or "")
-
-                    # Check for errors in output - be more specific
-                    # Import failures should be shown in output, not moved to error
-                    # Only treat as error if it's a fatal traceback or setup failure
-                    if output:
-                        # Check for actual fatal error indicators
-                        if (
-                            "Traceback (most recent call last)" in output
-                            and "FAILED Import error:" not in output
-                        ):
-                            # Only treat as error if it's not an import error (import errors are shown in output)
-                            # This allows us to see import errors in the output
-                            if "Setup error:" in output:
-                                error = output
-                        # Import failures are shown in output, not moved to error
-                        # This way users can see what went wrong with imports
-                        # Don't treat "Error calling" as a fatal error - it's just in a print statement
-
-                    return output, error
-                except asyncio.TimeoutError:
-                    logger.error("Sandbox execution timed out after 30 seconds")
-                    return None, "Execution timed out after 30 seconds"
+            # Per Anthropic article: tools are filesystem-based Python modules
+            # Write files directly to host workspace BEFORE sandbox creation
+            # With volume mounts, files written to host workspace are immediately
+            # available in the sandbox at /workspace
+            self._write_files_to_workspace(
+                workspace_path=workspace_path,
+                servers_path=servers_path,
+                client_path=client_path,
+                skills_path=skills_path,
+            )
+            
+            # Ensure files are flushed to disk before sandbox creation
+            # This prevents timing issues with virtiofs mounts
+            import os
+            os.sync()  # Force filesystem sync
+            
+            # Verify files exist on host before creating sandbox
+            client_file = workspace_path / "client" / "mcp_client.py"
+            if not client_file.exists():
+                logger.warning(f"Files not written correctly: {client_file} does not exist")
+            
+            # Mount workspace directory for true persistence across executions
+            workspace_path_abs = workspace_path.resolve()
+            
+            # Use unique sandbox name to avoid stale rootfs state
+            # Reusing the same sandbox name can cause virtiofs mount issues
+            import uuid
+            sandbox_name = f"code-execution-{uuid.uuid4().hex[:8]}"
+            
+            async with PythonSandbox.create(
+                name=sandbox_name,
+                volumes=[(str(workspace_path_abs), "/workspace")]
+            ) as sandbox:
+                return await self._execute_in_sandbox(sandbox, code)
 
         except Exception as e:
             logger.error(f"Sandbox execution error: {e}", exc_info=True)
             return None, str(e)
 
+    async def _execute_in_sandbox(
+        self,
+        sandbox: Any,
+        code: str,
+    ) -> tuple[Any, Optional[str]]:
+        """Execute code in sandbox with workspace mounted at /workspace.
+        
+        Args:
+            sandbox: PythonSandbox instance (with workspace mounted)
+            code: Code to execute
+        """
+        import asyncio
+
+        workspace_path = Path(self.execution_config.workspace_dir)
+        servers_path = Path(self.execution_config.servers_dir).resolve()
+        skills_path = Path(self.execution_config.skills_dir).resolve()
+        project_root = workspace_path.parent.resolve()
+        client_path = project_root / "client"
+
+        try:
+            # Files are already written to host workspace (done before sandbox creation)
+            # Generate minimal setup code to verify files exist and add /workspace to sys.path
+            setup_code = self._generate_verification_code()
+            
+            # Combine setup and execution in single run
+            # Files are already written to host workspace, so they're available via volume mount
+            combined_code = setup_code + "\n\n# Execute task code\n" + code
+            
+            logger.debug(f"Combined code length: {len(combined_code)} chars")
+            logger.debug("Executing combined code in sandbox...")
+            
+            exec_result = await asyncio.wait_for(sandbox.run(combined_code), timeout=45.0)
+            output = await exec_result.output()
+            error = None
+            
+            logger.debug(f"Execution completed. Output length: {len(output) if output else 0} chars")
+            if output:
+                logger.debug(f"Output first 1000 chars:\n{output[:1000]}")
+            
+            # Also check stderr for any errors that might not be in stdout
+            try:
+                stderr_output = await exec_result.error()
+                if stderr_output:
+                    logger.debug(f"Stderr output: {stderr_output[:500]}")
+                    # Append stderr to output for visibility
+                    if output:
+                        output = output + "\n[STDERR]\n" + stderr_output
+                    else:
+                        output = "[STDERR]\n" + stderr_output
+            except Exception as e:
+                logger.debug(f"Could not get stderr: {e}")
+
+            # Check for errors in output - be more specific
+            # Import failures should be shown in output, not moved to error
+            # Only treat as error if it's a fatal traceback or setup failure
+            if output:
+                # Check for actual fatal error indicators
+                if (
+                    "Traceback (most recent call last)" in output
+                    and "FAILED Import error:" not in output
+                ):
+                    # Only treat as error if it's not an import error (import errors are shown in output)
+                    # This allows us to see import errors in the output
+                    if "Setup error:" in output:
+                        error = output
+                # Import failures are shown in output, not moved to error
+                # This way users can see what went wrong with imports
+                # Don't treat "Error calling" as a fatal error - it's just in a print statement
+
+            return output, error
+        except asyncio.TimeoutError:
+            logger.error("Sandbox execution timed out after 30 seconds")
+            return None, "Execution timed out after 30 seconds"
+
     def _generate_copy_code(self, servers_path: Path, client_path: Path, skills_path: Path) -> str:
-        """Generate code to write files into sandbox.
+        """Generate code to write files into mounted workspace.
 
         Reads files directly from source directories and embeds them in setup code.
-        Files are written into sandbox so they're importable.
-        State files created by code should be written to workspace (persistent).
+        Files are written to /workspace (mounted volume) so they persist and are importable.
+        Per Anthropic article: tools are filesystem-based Python modules.
         """
         import base64
 
         setup_lines = [
             "import os",
+            "import sys",
             "import base64",
             "",
-            "# Create directory structure in sandbox",
-            "os.makedirs('servers', exist_ok=True)",
-            "os.makedirs('client', exist_ok=True)",
-            "os.makedirs('skills', exist_ok=True)",
+            "print('=== SETUP START ===', flush=True)",
+            "print(f'Python version: {sys.version}', flush=True)",
+            "print(f'Current working directory: {os.getcwd()}', flush=True)",
+            "print(f'sys.path: {sys.path}', flush=True)",
+            "",
+            "# Verify /workspace is mounted (volume mount check)",
+            "print('=== VOLUME MOUNT VERIFICATION ===', flush=True)",
+            "workspace_exists = os.path.exists('/workspace')",
+            "workspace_isdir = os.path.isdir('/workspace') if workspace_exists else False",
+            "print(f'/workspace exists: {workspace_exists}', flush=True)",
+            "print(f'/workspace is directory: {workspace_isdir}', flush=True)",
+            "if workspace_exists:",
+            "    try:",
+            "        # Try to list contents to verify mount is accessible",
+            "        contents = os.listdir('/workspace')",
+            "        print(f'/workspace contents: {contents}', flush=True)",
+            "        # Try to write a test file to verify mount is writable",
+            "        test_file = '/workspace/.mount_test'",
+            "        with open(test_file, 'w') as f:",
+            "            f.write('mount_test')",
+            "        if os.path.exists(test_file):",
+            "            os.remove(test_file)",
+            "            print('✅ /workspace is mounted and writable', flush=True)",
+            "        else:",
+            "            print('⚠️ /workspace exists but test file write failed', flush=True)",
+            "    except Exception as e:",
+            "        print(f'❌ Error accessing /workspace: {type(e).__name__}: {e}', flush=True)",
+            "        import traceback",
+            "        traceback.print_exc(file=sys.stdout)",
+            "",
+            "# Add /workspace to Python path for imports",
+            "if '/workspace' not in sys.path:",
+            "    sys.path.insert(0, '/workspace')",
+            "    print('Added /workspace to sys.path', flush=True)",
+            "else:",
+            "    print('/workspace already in sys.path', flush=True)",
+            "",
+            "# Create directory structure in mounted workspace",
+            "print('=== Creating directories ===', flush=True)",
+            "print('About to create /workspace/servers...', flush=True)",
+            "try:",
+            "    os.makedirs('/workspace/servers', exist_ok=True)",
+            "    servers_exists = os.path.exists('/workspace/servers')",
+            "    servers_isdir = os.path.isdir('/workspace/servers') if servers_exists else False",
+            "    print(f'✅ Created /workspace/servers (exists: {servers_exists}, is_dir: {servers_isdir})', flush=True)",
+            "except Exception as e:",
+            "    print(f'❌ Failed to create /workspace/servers: {type(e).__name__}: {e}', flush=True)",
+            "    import traceback",
+            "    traceback.print_exc(file=sys.stdout)",
+            "print('About to create /workspace/client...', flush=True)",
+            "try:",
+            "    os.makedirs('/workspace/client', exist_ok=True)",
+            "    client_exists = os.path.exists('/workspace/client')",
+            "    client_isdir = os.path.isdir('/workspace/client') if client_exists else False",
+            "    print(f'✅ Created /workspace/client (exists: {client_exists}, is_dir: {client_isdir})', flush=True)",
+            "except Exception as e:",
+            "    print(f'❌ Failed to create /workspace/client: {type(e).__name__}: {e}', flush=True)",
+            "    import traceback",
+            "    traceback.print_exc(file=sys.stdout)",
+            "print('About to create /workspace/skills...', flush=True)",
+            "try:",
+            "    os.makedirs('/workspace/skills', exist_ok=True)",
+            "    skills_exists = os.path.exists('/workspace/skills')",
+            "    skills_isdir = os.path.isdir('/workspace/skills') if skills_exists else False",
+            "    print(f'✅ Created /workspace/skills (exists: {skills_exists}, is_dir: {skills_isdir})', flush=True)",
+            "except Exception as e:",
+            "    print(f'❌ Failed to create /workspace/skills: {type(e).__name__}: {e}', flush=True)",
+            "    import traceback",
+            "    traceback.print_exc(file=sys.stdout)",
+            "",
+            "# Verify all directories were created",
+            "print('=== Directory Creation Summary ===', flush=True)",
+            "try:",
+            "    all_dirs = ['/workspace/servers', '/workspace/client', '/workspace/skills']",
+            "    for dir_path in all_dirs:",
+            "        exists = os.path.exists(dir_path)",
+            "        is_dir = os.path.isdir(dir_path) if exists else False",
+            "        print(f'{dir_path}: exists={exists}, is_dir={is_dir}', flush=True)",
+            "    print('=== End Directory Creation Summary ===', flush=True)",
+            "except Exception as e:",
+            "    print(f'❌ Error in directory summary: {e}', flush=True)",
+            "    import traceback",
+            "    traceback.print_exc(file=sys.stdout)",
+            "",
+            "# Checkpoint: All directories should be created by now",
+            "print('=== CHECKPOINT: Starting file writing phase ===', flush=True)",
+            "print(f'All directories exist check:', flush=True)",
+            "for d in ['/workspace/servers', '/workspace/client', '/workspace/skills']:",
+            "    print(f'  {d}: {os.path.exists(d)}', flush=True)",
             "",
         ]
 
         # Write client directory FIRST (servers depend on it)
+        # Per Anthropic article: tools are filesystem-based Python modules
         client_dir = client_path
         if client_dir.exists():
-            # Write minimal __init__.py
-            setup_lines.append(
-                "try:\n"
-                "    with open('client/__init__.py', 'w', encoding='utf-8') as f:\n"
-                '        f.write(\'"""Client module for sandbox execution."""\\n\')\n'
-                "except Exception as e:\n"
-                "    print(f'Error writing client/__init__.py: {e}', flush=True)\n"
-                "    raise"
-            )
+            # Ensure client directory exists before writing files
+            setup_lines.append("print('=== SETUP: Setting up client directory in /workspace ===', flush=True)")
+            setup_lines.append("print(f'Current working directory: {os.getcwd()}', flush=True)")
+            setup_lines.append("print(f'/workspace exists: {os.path.exists(\"/workspace\")}', flush=True)")
+            setup_lines.append("print(f'/workspace is dir: {os.path.isdir(\"/workspace\")}', flush=True)")
+            setup_lines.append("# Ensure /workspace/client directory exists (should already exist from above)")
+            setup_lines.append("if not os.path.exists('/workspace/client'):")
+            setup_lines.append("    try:")
+            setup_lines.append("        os.makedirs('/workspace/client', exist_ok=True)")
+            setup_lines.append("        print('✅ Ensured /workspace/client directory exists', flush=True)")
+            setup_lines.append("    except Exception as e:")
+            setup_lines.append("        print(f'❌ Failed to create /workspace/client: {e}', flush=True)")
+            setup_lines.append("        import traceback")
+            setup_lines.append("        traceback.print_exc(file=sys.stdout)")
+            setup_lines.append("        raise RuntimeError('Cannot continue without /workspace/client directory')")
+            setup_lines.append("else:")
+            setup_lines.append("    print('✅ /workspace/client directory already exists', flush=True)")
+            setup_lines.append("client_dir_exists = os.path.exists('/workspace/client')")
+            setup_lines.append("print(f'Directory /workspace/client exists: {client_dir_exists}', flush=True)")
+            setup_lines.append("try:")
+            setup_lines.append("    print('=== About to write __init__.py ===', flush=True)")
+            setup_lines.append("    init_content = 'Client module for sandbox execution.\\n'")
+            setup_lines.append("    print(f'Content to write: {repr(init_content)}', flush=True)")
+            setup_lines.append("    with open('/workspace/client/__init__.py', 'w', encoding='utf-8') as f:")
+            setup_lines.append("        f.write(init_content)")
+            setup_lines.append("        print('File handle opened and written', flush=True)")
+            setup_lines.append("    print('✅ Written /workspace/client/__init__.py', flush=True)")
+            setup_lines.append("    file_exists = os.path.exists('/workspace/client/__init__.py')")
+            setup_lines.append("    print(f'File exists after write: {file_exists}', flush=True)")
+            setup_lines.append("    if file_exists:")
+            setup_lines.append("        with open('/workspace/client/__init__.py', 'r') as f:")
+            setup_lines.append("            read_back = f.read()")
+            setup_lines.append("        print(f'Read back content: {repr(read_back)}', flush=True)")
+            setup_lines.append("except Exception as e:")
+            setup_lines.append("    print(f'❌ ERROR writing client/__init__.py: {type(e).__name__}: {e}', flush=True)")
+            setup_lines.append("    import traceback")
+            setup_lines.append("    traceback.print_exc(file=sys.stdout)")
+            setup_lines.append("    print('=== End of error traceback ===', flush=True)")
+            # Don't raise - continue to try writing mcp_client.py
 
-            # Write mock mcp_client.py (for examples)
+            # Write mcp_client.py (use mock for examples, real for production)
+            # Prefer mock_mcp_client.py for examples (no real MCP server needed)
             mock_client_file = client_dir / "mock_mcp_client.py"
+            real_client_file = client_dir / "mcp_client.py"
+            
             if mock_client_file.exists():
+                # Use mock client for examples
+                # Per Anthropic article: tools are filesystem-based Python modules
                 content = mock_client_file.read_text(encoding="utf-8")
                 content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-                setup_lines.append(
-                    f"try:\n"
-                    f"    decoded_content = base64.b64decode('{content_b64}').decode('utf-8')\n"
-                    f"    with open('client/mcp_client.py', 'w', encoding='utf-8') as f:\n"
-                    f"        f.write(decoded_content)\n"
-                    f"except Exception as e:\n"
-                    f"    print(f'Error writing mcp_client.py: {{e}}', flush=True)\n"
-                    f"    raise"
-                )
-            else:
-                # Fallback: try to use real mcp_client.py if mock doesn't exist
-                real_client_file = client_dir / "mcp_client.py"
-                if real_client_file.exists():
-                    content = real_client_file.read_text(encoding="utf-8")
-                    content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-                    setup_lines.append(
-                        f"try:\n"
-                        f"    decoded_content = base64.b64decode('{content_b64}').decode('utf-8')\n"
-                        f"    with open('client/mcp_client.py', 'w', encoding='utf-8') as f:\n"
-                        f"        f.write(decoded_content)\n"
-                        f"except Exception as e:\n"
-                        f"    print(f'Error writing mcp_client.py: {{e}}', flush=True)\n"
-                        f"    raise"
-                    )
+                # Write base64 in chunks to avoid string literal limits
+                chunk_size = 1000
+                chunks = [content_b64[i:i+chunk_size] for i in range(0, len(content_b64), chunk_size)]
+                setup_lines.append("try:")
+                setup_lines.append("    print('Writing /workspace/client/mcp_client.py...', flush=True)")
+                setup_lines.append("    content_b64_parts = [")
+                for chunk in chunks:
+                    # Use repr() to safely escape the chunk
+                    setup_lines.append(f"        {repr(chunk)},")
+                setup_lines.append("    ]")
+                setup_lines.append("    content_b64 = ''.join(content_b64_parts)")
+                setup_lines.append("    decoded_content = base64.b64decode(content_b64).decode('utf-8')")
+                setup_lines.append("    with open('/workspace/client/mcp_client.py', 'w', encoding='utf-8') as f:")
+                setup_lines.append("        f.write(decoded_content)")
+                setup_lines.append("    print('✅ Written /workspace/client/mcp_client.py', flush=True)")
+                setup_lines.append("except Exception as e:")
+                setup_lines.append("    print(f'❌ Error writing mcp_client.py: {e}', flush=True)")
+                setup_lines.append("    import traceback")
+                setup_lines.append("    traceback.print_exc()")
+                setup_lines.append("    raise")
+            elif real_client_file.exists():
+                # Use real client if mock doesn't exist
+                content = real_client_file.read_text(encoding="utf-8")
+                content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
+                chunk_size = 1000
+                chunks = [content_b64[i:i+chunk_size] for i in range(0, len(content_b64), chunk_size)]
+                setup_lines.append("try:")
+                setup_lines.append("    print('Writing /workspace/client/mcp_client.py...', flush=True)")
+                setup_lines.append("    content_b64_parts = [")
+                for chunk in chunks:
+                    setup_lines.append(f"        {repr(chunk)},")
+                setup_lines.append("    ]")
+                setup_lines.append("    content_b64 = ''.join(content_b64_parts)")
+                setup_lines.append("    decoded_content = base64.b64decode(content_b64).decode('utf-8')")
+                setup_lines.append("    with open('/workspace/client/mcp_client.py', 'w', encoding='utf-8') as f:")
+                setup_lines.append("        f.write(decoded_content)")
+                setup_lines.append("    print('✅ Written /workspace/client/mcp_client.py', flush=True)")
+                setup_lines.append("except Exception as e:")
+                setup_lines.append("    print(f'❌ Error writing mcp_client.py: {e}', flush=True)")
+                setup_lines.append("    import traceback")
+                setup_lines.append("    traceback.print_exc()")
+                setup_lines.append("    raise")
 
         # Write servers directory (after client is available)
         servers_dir = servers_path
@@ -253,134 +429,204 @@ class SandboxExecutor(CodeExecutor):
             for server_dir in sorted(servers_dir.iterdir()):
                 if server_dir.is_dir():
                     server_name = server_dir.name
-                    setup_lines.append(f"os.makedirs('servers/{server_name}', exist_ok=True)")
+                    setup_lines.append(f"os.makedirs('/workspace/servers/{server_name}', exist_ok=True)")
                     # Write tool files first (before __init__.py which imports them)
                     for tool_file in sorted(server_dir.glob("*.py")):
                         if tool_file.name != "__init__.py":
                             content = tool_file.read_text(encoding="utf-8")
                             content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-                            setup_lines.append(
-                                f"try:\n"
-                                f"    decoded_content = base64.b64decode('{content_b64}').decode('utf-8')\n"
-                                f"    with open('servers/{server_name}/{tool_file.name}', 'w', encoding='utf-8') as f:\n"
-                                f"        f.write(decoded_content)\n"
-                                f"except Exception as e:\n"
-                                f"    print(f'Error writing {tool_file.name}: {{e}}', flush=True)\n"
-                                f"    raise"
-                            )
+                            chunk_size = 1000
+                            chunks = [content_b64[i:i+chunk_size] for i in range(0, len(content_b64), chunk_size)]
+                            setup_lines.append("try:")
+                            setup_lines.append(f"    print('Writing /workspace/servers/{server_name}/{tool_file.name}...', flush=True)")
+                            setup_lines.append("    content_b64_parts = [")
+                            for chunk in chunks:
+                                setup_lines.append(f"        {repr(chunk)},")
+                            setup_lines.append("    ]")
+                            setup_lines.append("    content_b64 = ''.join(content_b64_parts)")
+                            setup_lines.append("    decoded_content = base64.b64decode(content_b64).decode('utf-8')")
+                            setup_lines.append(f"    with open('/workspace/servers/{server_name}/{tool_file.name}', 'w', encoding='utf-8') as f:")
+                            setup_lines.append("        f.write(decoded_content)")
+                            setup_lines.append(f"    print(f'✅ Written /workspace/servers/{server_name}/{tool_file.name}', flush=True)")
+                            setup_lines.append("except Exception as e:")
+                            setup_lines.append(f"    print(f'❌ Error writing {tool_file.name}: {{e}}', flush=True)")
+                            setup_lines.append("    import traceback")
+                            setup_lines.append("    traceback.print_exc()")
+                            setup_lines.append("    raise")
                     # Write __init__.py last (it imports from tool files)
                     init_file = server_dir / "__init__.py"
                     if init_file.exists():
                         content = init_file.read_text(encoding="utf-8")
                         content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-                        setup_lines.append(
-                            f"try:\n"
-                            f"    decoded_content = base64.b64decode('{content_b64}').decode('utf-8')\n"
-                            f"    with open('servers/{server_name}/__init__.py', 'w', encoding='utf-8') as f:\n"
-                            f"        f.write(decoded_content)\n"
-                            f"except Exception as e:\n"
-                            f"    print(f'Error writing __init__.py: {{e}}', flush=True)\n"
-                            f"    raise"
-                        )
+                        chunk_size = 1000
+                        chunks = [content_b64[i:i+chunk_size] for i in range(0, len(content_b64), chunk_size)]
+                        setup_lines.append("try:")
+                        setup_lines.append(f"    print('Writing /workspace/servers/{server_name}/__init__.py...', flush=True)")
+                        setup_lines.append("    content_b64_parts = [")
+                        for chunk in chunks:
+                            setup_lines.append(f"        {repr(chunk)},")
+                        setup_lines.append("    ]")
+                        setup_lines.append("    content_b64 = ''.join(content_b64_parts)")
+                        setup_lines.append("    decoded_content = base64.b64decode(content_b64).decode('utf-8')")
+                        setup_lines.append(f"    with open('/workspace/servers/{server_name}/__init__.py', 'w', encoding='utf-8') as f:")
+                        setup_lines.append("        f.write(decoded_content)")
+                        setup_lines.append(f"    print(f'✅ Written /workspace/servers/{server_name}/__init__.py', flush=True)")
+                        setup_lines.append("except Exception as e:")
+                        setup_lines.append("    print(f'❌ Error writing __init__.py: {e}', flush=True)")
+                        setup_lines.append("    import traceback")
+                        setup_lines.append("    traceback.print_exc()")
+                        setup_lines.append("    raise")
 
-        # Add current directory to sys.path and clear import cache
-        setup_lines.append("import sys")
-        setup_lines.append("if '.' not in sys.path:")
-        setup_lines.append("    sys.path.insert(0, '.')")
-        setup_lines.append("")
+        # Clear any cached modules to force fresh imports
         setup_lines.append("# Clear any cached modules to force fresh imports")
         setup_lines.append(
             "modules_to_clear = [m for m in list(sys.modules.keys()) if m.startswith('servers.') or m.startswith('client.')]"
         )
         setup_lines.append("for mod in modules_to_clear:")
         setup_lines.append("    del sys.modules[mod]")
+        setup_lines.append("")
+        setup_lines.append("# Verify client.mcp_client is importable (per Anthropic article pattern)")
+        setup_lines.append("try:")
+        setup_lines.append("    from client.mcp_client import call_mcp_tool")
+        setup_lines.append("    print('✅ client.mcp_client imported successfully', flush=True)")
+        setup_lines.append("except Exception as e:")
+        setup_lines.append("    print(f'❌ client.mcp_client import failed: {e}', flush=True)")
+        setup_lines.append("    import traceback")
+        setup_lines.append("    traceback.print_exc(limit=3)")
+        setup_lines.append("")
+        setup_lines.append("print('=== SETUP COMPLETE ===', flush=True)")
 
         return "\n".join(setup_lines)
-
-    def _generate_workspace_copy_in_code(self, workspace_path: Path) -> str:
-        """Generate code to copy workspace files into sandbox.
-
-        This allows code to read previous state from workspace.
-        Since microsandbox doesn't support mounting, we copy files in.
+    
+    def _write_files_to_workspace(
+        self,
+        workspace_path: Path,
+        servers_path: Path,
+        client_path: Path,
+        skills_path: Path,
+    ) -> None:
+        """Write files directly to host workspace before sandbox execution.
+        
+        With volume mounts, files written to host workspace are immediately
+        available in the sandbox at /workspace. This avoids the large script
+        execution issue in Python's interactive mode.
+        
+        Per Anthropic article: tools are filesystem-based Python modules.
         """
-        if not workspace_path.exists():
-            return ""
-
-        import base64
-
-        lines = [
-            "import os",
-            "import base64",
-            "",
-            "# Create workspace directory in sandbox",
-            "os.makedirs('workspace', exist_ok=True)",
-            "",
-        ]
-
-        # Copy all files from workspace into sandbox
-        file_count = 0
-        for file_path in workspace_path.rglob("*"):
-            if file_path.is_file():
-                rel_path = file_path.relative_to(workspace_path)
-                # Skip hidden files and __pycache__
-                if rel_path.parts[0].startswith(".") or "__pycache__" in rel_path.parts:
-                    continue
-
-                try:
-                    content = file_path.read_text(encoding="utf-8", errors="ignore")
-                    content_b64 = base64.b64encode(content.encode("utf-8")).decode("ascii")
-
-                    # Create directory structure
-                    if rel_path.parent != Path("."):
-                        dir_path = "workspace/" + str(rel_path.parent).replace("\\", "/")
-                        lines.append(f"os.makedirs('{dir_path}', exist_ok=True)")
-
-                    # Write file
-                    file_name = rel_path.name
-                    rel_path_str = str(rel_path).replace("\\", "/")
-                    lines.append(
-                        f"try:\n"
-                        f"    decoded_content = base64.b64decode('{content_b64}').decode('utf-8')\n"
-                        f"    with open('workspace/{rel_path_str}', 'w', encoding='utf-8') as f:\n"
-                        f"        f.write(decoded_content)\n"
-                        f"except Exception as e:\n"
-                        f"    print(f'Error copying workspace file {rel_path_str}: {{e}}', flush=True)"
-                    )
-                    file_count += 1
-                except Exception as e:
-                    logger.warning(f"Failed to read workspace file {file_path}: {e}")
-
-        if file_count > 0:
-            lines.append(
-                f"print(f'Copied {file_count} workspace file(s) into sandbox', flush=True)"
+        workspace_path = workspace_path.resolve()
+        logger.debug(f"Writing files to workspace: {workspace_path}")
+        
+        # Create directory structure
+        (workspace_path / "client").mkdir(parents=True, exist_ok=True)
+        (workspace_path / "servers").mkdir(parents=True, exist_ok=True)
+        (workspace_path / "skills").mkdir(parents=True, exist_ok=True)
+        
+        logger.debug(f"Created directories in {workspace_path}")
+        
+        # Write client files
+        if client_path.exists():
+            # Write __init__.py
+            client_init_path = workspace_path / "client" / "__init__.py"
+            client_init_path.write_text(
+                '"""Client module for sandbox execution."""\n', encoding="utf-8"
             )
-            return "\n".join(lines)
-        return ""
-
-    def _generate_workspace_sync_code(self, workspace_path: Path) -> str:
-        """Generate code to identify workspace files for sync.
-
-        Note: microsandbox doesn't provide direct file extraction.
-        Files written to workspace/ in sandbox persist within the session
-        but need to be extracted separately for cross-session persistence.
-        This is a limitation of the current microsandbox API.
+            logger.debug(f"Wrote {client_init_path}")
+            
+            # Write mcp_client.py (prefer mock, fallback to real)
+            mock_client_file = client_path / "mock_mcp_client.py"
+            real_client_file = client_path / "mcp_client.py"
+            
+            if mock_client_file.exists():
+                content = mock_client_file.read_text(encoding="utf-8")
+                mcp_client_path = workspace_path / "client" / "mcp_client.py"
+                mcp_client_path.write_text(content, encoding="utf-8")
+                logger.debug(f"Wrote {mcp_client_path} ({len(content)} chars)")
+            elif real_client_file.exists():
+                content = real_client_file.read_text(encoding="utf-8")
+                mcp_client_path = workspace_path / "client" / "mcp_client.py"
+                mcp_client_path.write_text(content, encoding="utf-8")
+                logger.debug(f"Wrote {mcp_client_path} ({len(content)} chars)")
+            else:
+                logger.warning(f"Neither mock_mcp_client.py nor mcp_client.py found in {client_path}")
+        else:
+            logger.warning(f"Client path does not exist: {client_path}")
+        
+        # Write server files
+        if servers_path.exists():
+            for server_dir in sorted(servers_path.iterdir()):
+                if server_dir.is_dir():
+                    server_name = server_dir.name
+                    target_server_dir = workspace_path / "servers" / server_name
+                    target_server_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    # Copy tool files first (before __init__.py which imports them)
+                    for tool_file in sorted(server_dir.glob("*.py")):
+                        if tool_file.name != "__init__.py":
+                            content = tool_file.read_text(encoding="utf-8")
+                            (target_server_dir / tool_file.name).write_text(content, encoding="utf-8")
+                    
+                    # Copy __init__.py last (it imports from tool files)
+                    init_file = server_dir / "__init__.py"
+                    if init_file.exists():
+                        content = init_file.read_text(encoding="utf-8")
+                        (target_server_dir / "__init__.py").write_text(content, encoding="utf-8")
+        
+        # Write skill files
+        if skills_path.exists():
+            for skill_file in sorted(skills_path.glob("*.py")):
+                content = skill_file.read_text(encoding="utf-8")
+                (workspace_path / "skills" / skill_file.name).write_text(content, encoding="utf-8")
+    
+    def _generate_verification_code(self) -> str:
+        """Generate minimal code to verify files exist and set up Python path.
+        
+        Since files are written directly to host workspace, we just need to:
+        1. Verify /workspace is mounted
+        2. Add /workspace to sys.path
+        3. Verify files exist and can be imported
         """
-        # For now, just log what files are in workspace
-        # In a full implementation, you'd extract these files from sandbox
-        lines = [
+        return "\n".join([
             "import os",
+            "import sys",
             "",
-            "# List files in workspace directory (for debugging)",
-            "workspace_files = []",
-            "if os.path.exists('workspace'):",
-            "    for root, dirs, files in os.walk('workspace'):",
-            "        for file in files:",
-            "            file_path = os.path.join(root, file)",
-            "            if os.path.isfile(file_path):",
-            "                rel_path = os.path.relpath(file_path, 'workspace')",
-            "                workspace_files.append(rel_path)",
+            "# Add /workspace to Python path for imports",
+            "if '/workspace' not in sys.path:",
+            "    sys.path.insert(0, '/workspace')",
             "",
-            "if workspace_files:",
-            "    print(f'Workspace files created: {workspace_files}', flush=True)",
-        ]
-        return "\n".join(lines)
+            "# Verify /workspace is mounted and files exist",
+            "if os.path.exists('/workspace'):",
+            "    print('✅ /workspace is mounted', flush=True)",
+            "    try:",
+            "        contents = os.listdir('/workspace')",
+            "        print(f'/workspace contents: {contents}', flush=True)",
+            "    except Exception as e:",
+            "        print(f'⚠️ Error listing /workspace: {e}', flush=True)",
+            "    ",
+            "    client_dir_exists = os.path.exists('/workspace/client')",
+            "    print(f'/workspace/client exists: {client_dir_exists}', flush=True)",
+            "    if client_dir_exists:",
+            "        try:",
+            "            client_contents = os.listdir('/workspace/client')",
+            "            print(f'/workspace/client contents: {client_contents}', flush=True)",
+            "        except Exception as e:",
+            "            print(f'⚠️ Error listing /workspace/client: {e}', flush=True)",
+            "    ",
+            "    mcp_client_exists = os.path.exists('/workspace/client/mcp_client.py')",
+            "    print(f'/workspace/client/mcp_client.py exists: {mcp_client_exists}', flush=True)",
+            "    if mcp_client_exists:",
+            "        print('✅ client/mcp_client.py exists', flush=True)",
+            "        # Try to import to verify it works",
+            "        try:",
+            "            from client.mcp_client import call_mcp_tool",
+            "            print('✅ client.mcp_client imported successfully', flush=True)",
+            "        except Exception as e:",
+            "            print(f'⚠️ client.mcp_client import failed: {e}', flush=True)",
+            "            import traceback",
+            "            traceback.print_exc(file=sys.stdout)",
+            "    else:",
+            "        print('⚠️ client/mcp_client.py not found', flush=True)",
+            "else:",
+            "    print('❌ /workspace not mounted', flush=True)",
+            "",
+        ])
+

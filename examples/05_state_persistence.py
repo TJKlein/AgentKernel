@@ -40,13 +40,11 @@ def main() -> None:
 
     agent = AgentHelper(fs_helper, executor)
 
-    # State persistence works as follows:
-    # 1. Workspace files are copied INTO sandbox at start (code can read previous state)
-    # 2. Code can write to workspace/ directory in sandbox (persists within session)
-    # 3. Note: Files written to workspace/ in sandbox don't automatically sync back to host
-    #    microsandbox Rust core supports volumes (patch_with_virtiofs_mounts) but Python API
-    #    doesn't expose this yet. See WORKSPACE_PERSISTENCE.md for details.
-    task_description = "Calculate 5 + 3, save the result to a file called 'workspace/result.txt', then read it back and print it"
+    # State persistence with volume mounts:
+    # Workspace directory is mounted at /workspace in sandbox
+    # Files written to /workspace are automatically persisted to host
+    # Files persist across multiple executions - true session tracking!
+    task_description = "Calculate 5 + 3, save the result to a file called '/workspace/result.txt', then read it back and print it. Also check if /workspace exists and is mounted."
 
     print("\nSaving and loading state...")
     result, output, error = agent.execute_task(task_description=task_description, verbose=True)
