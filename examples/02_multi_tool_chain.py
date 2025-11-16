@@ -36,9 +36,10 @@ def main() -> None:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Chain multiple tools: calculate, then use result in weather query
     task_description = "Calculate 10 * 5, then get weather for that many cities starting with San Francisco"

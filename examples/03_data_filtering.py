@@ -36,9 +36,10 @@ def main() -> None:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Filter and process data in code
     task_description = "Query database for users, filter for active users, and calculate statistics"

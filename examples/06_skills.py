@@ -44,9 +44,10 @@ def double_number(x: float) -> float:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Use the saved skill
     task_description = "Import the double_number skill and use it to double 15"

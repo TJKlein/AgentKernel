@@ -275,22 +275,89 @@ print(f"{tool_name}() = {{result}}")"""
         task_lower = task_description.lower()
         file_ops = []
         
-        # Check for file save operations
-        if "save" in task_lower and ("file" in task_lower or "workspace" in task_lower):
+        # Check for JSON file operations
+        is_json = ".json" in task_description or "json" in task_lower
+        
+        # Check if this is a read+update operation first (prioritize over save)
+        has_save_back = "save it back" in task_lower or "save back" in task_lower or "save it" in task_lower
+        has_read = "read" in task_lower or "from" in task_lower
+        has_update = "update" in task_lower or "continue" in task_lower
+        has_create = "create" in task_lower or "initialize" in task_lower
+        # Don't treat create/initialize as read+update - it's a new file creation
+        is_read_update = (has_read or has_update or has_save_back) and not has_create and ("file" in task_lower or "workspace" in task_lower or "json" in task_lower)
+        
+        # Check for file save operations (only if not a read+update operation)
+        if not is_read_update and ("save" in task_lower or has_create) and ("file" in task_lower or "workspace" in task_lower):
             # Extract filename from task
             import re
             # Look for patterns like "save ... to a file called 'workspace/result.txt'"
-            filename_match = re.search(r"(?:file|called|to)\s+['\"]([^'\"]+)['\"]", task_description)
+            # Also look for "/workspace/state.json" patterns (more specific)
+            filename_match = re.search(r"(/workspace/[^\s'\"]+\.json)", task_description)
+            if not filename_match:
+                # Try patterns like "to /workspace/file.json" or "called '/workspace/file.json'"
+                filename_match = re.search(r"(?:to|called|from)\s+(/workspace/[^\s'\"]+\.json)", task_description)
+            if not filename_match:
+                # Try quoted patterns
+                filename_match = re.search(r"['\"](/workspace/[^'\"]+\.json)['\"]", task_description)
             if filename_match:
                 filename = filename_match.group(1)
+                # Clean up filename
+                filename = filename.strip("'\"")
                 # Ensure it starts with /workspace if it's a workspace file
                 if not filename.startswith("/workspace") and "workspace" in filename:
                     filename = "/workspace/" + filename.replace("workspace/", "").lstrip("/")
                 elif not filename.startswith("/") and "workspace" not in filename:
                     filename = "/workspace/" + filename
                 
+                # Check if it's a JSON file
+                if is_json or filename.endswith(".json"):
+                    # Generate JSON file creation code
+                    # Try to extract JSON structure from task description
+                    json_data_code = self._extract_json_structure(task_description, task_lower)
+                    
+                    # Check if we need to do calculations/updates after creating the structure
+                    post_ops_code = ""
+                    # Check for "add to results" operations (look for "add" and "results" and calculation)
+                    if "add" in task_lower and "results" in task_lower:
+                        calc_match = re.search(r"(\d+)\s*[+\-*/]\s*(\d+)", task_description)
+                        if calc_match:
+                            a, b = int(calc_match.group(1)), int(calc_match.group(2))
+                            op_match = re.search(r"([+\-*/])", task_description)
+                            op = op_match.group(1) if op_match else "*"
+                            
+                            if op == "+":
+                                post_ops_code += f"\ncalc_result = {a} + {b}\n"
+                            elif op == "-":
+                                post_ops_code += f"\ncalc_result = {a} - {b}\n"
+                            elif op == "*":
+                                post_ops_code += f"\ncalc_result = {a} * {b}\n"
+                            elif op == "/":
+                                post_ops_code += f"\ncalc_result = {a} / {b}\n"
+                            
+                            post_ops_code += 'if "results" not in data:\n    data["results"] = []\ndata["results"].append(calc_result)\n'
+                    
+                    # Check for current_step update (look for "update" and "current_step" or "step")
+                    if "update" in task_lower and ("current_step" in task_lower or "step" in task_lower):
+                        # Try to find "update current_step to X" - prioritize update instructions over initial values
+                        # Look for patterns like "Update current_step to 2" or "update current_step: 2"
+                        step_match = re.search(r"update\s+current_step\s+(?:to|:)\s*(\d+)", task_description, re.IGNORECASE)
+                        if not step_match:
+                            # Fallback: look for "current_step to X" after "update"
+                            step_match = re.search(r"update.*?current_step.*?(?:to|:)\s*(\d+)", task_description, re.IGNORECASE)
+                        if step_match:
+                            new_step = int(step_match.group(1))
+                            post_ops_code += f'data["current_step"] = {new_step}\n'
+                    
+                    file_ops.append(f"""# Save data to JSON file
+import json
+import os
+os.makedirs(os.path.dirname("{filename}"), exist_ok=True)
+{json_data_code}{post_ops_code}
+with open("{filename}", "w", encoding="utf-8") as f:
+    json.dump(data, f, indent=2)
+print(f"✅ Saved JSON data to {filename}")""")
                 # Check if we need to save a calculation result
-                if "calculate" in task_lower or "result" in task_lower:
+                elif "calculate" in task_lower or "result" in task_lower:
                     file_ops.append(f"""# Save result to file
 import os
 os.makedirs(os.path.dirname("{filename}"), exist_ok=True)
@@ -305,19 +372,77 @@ with open("{filename}", "w") as f:
     f.write("result")
 print(f"✅ Saved to {filename}")""")
         
-        # Check for file read operations
-        if "read" in task_lower and ("file" in task_lower or "workspace" in task_lower):
+        # Check for file read and update operations (for workflows)
+        # This should have been checked above, but check again to be safe
+        if is_read_update:
             # Extract filename from task
             import re
-            filename_match = re.search(r"(?:file|called|from)\s+['\"]([^'\"]+)['\"]", task_description)
+            # Look for JSON file path directly first (most specific)
+            filename_match = re.search(r"(/workspace/[^\s'\"]+\.json)", task_description)
+            if not filename_match:
+                # Try patterns like "from /workspace/file.json" or "called '/workspace/file.json'"
+                filename_match = re.search(r"(?:from|called|read)\s+(/workspace/[^\s'\"]+\.json)", task_description)
+            if not filename_match:
+                # Try quoted patterns
+                filename_match = re.search(r"['\"](/workspace/[^'\"]+\.json)['\"]", task_description)
             if filename_match:
                 filename = filename_match.group(1)
+                filename = filename.strip("'\"")
                 if not filename.startswith("/workspace") and "workspace" in filename:
                     filename = "/workspace/" + filename.replace("workspace/", "").lstrip("/")
                 elif not filename.startswith("/") and "workspace" not in filename:
                     filename = "/workspace/" + filename
                 
-                file_ops.append(f"""# Read file back
+                # Check if it's a JSON file
+                if filename.endswith(".json") or is_json:
+                    # Check if we need to update the file after reading
+                    has_save_back = "save it back" in task_lower or "save back" in task_lower or "save it" in task_lower
+                    has_read = "read" in task_lower or "from" in task_lower
+                    has_update = "update" in task_lower or "continue" in task_lower or "add" in task_lower
+                    # Use read+update if task mentions reading, updating, or saving back
+                    if has_read or has_update or has_save_back:
+                        # Read, update, and save back
+                        update_code = self._generate_json_update_code(task_description, task_lower, filename)
+                        # Ensure update_code is not empty (at least a pass statement)
+                        if not update_code or update_code.strip() == "# No updates needed":
+                            update_code = "pass  # No updates needed"
+                        file_ops.append(f"""# Read and update JSON file
+import json
+import os
+try:
+    with open("{filename}", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    print(f"✅ Read JSON from {filename}:")
+    print(json.dumps(data, indent=2))
+    # Update data
+{update_code}
+    # Save updated data back
+    with open("{filename}", "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    print(f"✅ Updated and saved {filename}")
+except FileNotFoundError:
+    print(f"❌ File {filename} not found")
+except json.JSONDecodeError as e:
+    print(f"❌ Error parsing JSON from {filename}: {{e}}")
+except Exception as e:
+    print(f"❌ Error reading/updating {filename}: {{e}}")""")
+                    else:
+                        # Just read
+                        file_ops.append(f"""# Read JSON file
+import json
+try:
+    with open("{filename}", "r", encoding="utf-8") as f:
+        data = json.load(f)
+    print(f"✅ Read JSON from {filename}:")
+    print(json.dumps(data, indent=2))
+except FileNotFoundError:
+    print(f"❌ File {filename} not found")
+except json.JSONDecodeError as e:
+    print(f"❌ Error parsing JSON from {filename}: {{e}}")
+except Exception as e:
+    print(f"❌ Error reading {filename}: {{e}}")""")
+                else:
+                    file_ops.append(f"""# Read file back
 try:
     with open("{filename}", "r") as f:
         content = f.read()
@@ -343,3 +468,281 @@ else:
     print(f"❌ {workspace_path} does not exist (mount may have failed)")""")
         
         return "\n".join(file_ops) if file_ops else ""
+    
+    def _extract_json_structure(self, task_description: str, task_lower: str) -> str:
+        """Extract JSON structure from task description and generate Python code.
+        
+        Args:
+            task_description: Task description that may contain JSON structure
+            task_lower: Lowercase version of task description
+            
+        Returns:
+            Python code that creates the data dict
+        """
+        import re
+        
+        # Look for patterns like:
+        # - calculation: "5 + 3"
+        # - result: 8
+        # - step: 1
+        # - message: "State saved in session 1"
+        
+        code_lines = ["# Build JSON data structure", "data = {}"]
+        
+        # Pattern 1: Look for field: value patterns
+        field_pattern = r"[-*]\s*(\w+):\s*([^\n]+)"
+        matches = re.findall(field_pattern, task_description)
+        
+        if matches:
+            # Check if we need to calculate result first
+            needs_calculation = False
+            calc_a, calc_b, calc_op = None, None, None
+            if "calculate" in task_lower:
+                calc_match = re.search(r"(\d+)\s*[+\-*/]\s*(\d+)", task_description)
+                if calc_match:
+                    calc_a, calc_b = int(calc_match.group(1)), int(calc_match.group(2))
+                    op_match = re.search(r"([+\-*/])", task_description)
+                    calc_op = op_match.group(1) if op_match else "+"
+                    needs_calculation = True
+            
+            # Add calculation code if needed
+            if needs_calculation:
+                if calc_op == "+":
+                    code_lines.append(f'calc_result = {calc_a} + {calc_b}')
+                elif calc_op == "-":
+                    code_lines.append(f'calc_result = {calc_a} - {calc_b}')
+                elif calc_op == "*":
+                    code_lines.append(f'calc_result = {calc_a} * {calc_b}')
+                elif calc_op == "/":
+                    code_lines.append(f'calc_result = {calc_a} / {calc_b}')
+                else:
+                    code_lines.append(f'calc_result = {calc_a} + {calc_b}')
+            
+            for field, value in matches:
+                field = field.strip()
+                value = value.strip()
+                
+                # Special handling for result field - use calculated value if available
+                if field == "result" and needs_calculation:
+                    code_lines.append(f'data["{field}"] = calc_result')
+                    continue
+                
+                # Remove quotes if present
+                if value.startswith('"') and value.endswith('"'):
+                    value_str = value[1:-1]
+                    code_lines.append(f'data["{field}"] = "{value_str}"')
+                elif value.startswith("'") and value.endswith("'"):
+                    value_str = value[1:-1]
+                    code_lines.append(f'data["{field}"] = "{value_str}"')
+                else:
+                    # Try to convert to number or list
+                    try:
+                        # Check if it's an empty list
+                        if value.strip() == "[]":
+                            code_lines.append(f'data["{field}"] = []')
+                        # Check if it's a list with items
+                        elif value.strip().startswith("[") and value.strip().endswith("]"):
+                            # Try to parse as Python list
+                            try:
+                                import ast
+                                parsed = ast.literal_eval(value.strip())
+                                if isinstance(parsed, list):
+                                    code_lines.append(f'data["{field}"] = {parsed}')
+                                else:
+                                    code_lines.append(f'data["{field}"] = "{value}"')
+                            except:
+                                code_lines.append(f'data["{field}"] = "{value}"')
+                        # Try number
+                        elif '.' in value:
+                            code_lines.append(f'data["{field}"] = {float(value)}')
+                        else:
+                            code_lines.append(f'data["{field}"] = {int(value)}')
+                    except ValueError:
+                        # Keep as string
+                        code_lines.append(f'data["{field}"] = "{value}"')
+        
+        # If we have matches, check if we need to add calculation
+        if len(code_lines) > 1:  # More than just "data = {}"
+            # Check if result field is mentioned but calculation needed
+            if 'result' in [line for line in code_lines if 'data["result"]' in line]:
+                # Result is already in the structure, but might need calculation
+                calc_match = re.search(r"(\d+)\s*[+\-*/]\s*(\d+)", task_description)
+                if calc_match and 'calc_result' not in '\n'.join(code_lines):
+                    a, b = int(calc_match.group(1)), int(calc_match.group(2))
+                    op_match = re.search(r"([+\-*/])", task_description)
+                    op = op_match.group(1) if op_match else "+"
+                    
+                    # Insert calculation before result assignment
+                    calc_lines = []
+                    if op == "+":
+                        calc_lines.append(f'calc_result = {a} + {b}')
+                    elif op == "-":
+                        calc_lines.append(f'calc_result = {a} - {b}')
+                    elif op == "*":
+                        calc_lines.append(f'calc_result = {a} * {b}')
+                    elif op == "/":
+                        calc_lines.append(f'calc_result = {a} / {b}')
+                    else:
+                        calc_lines.append(f'calc_result = {a} + {b}')
+                    
+                    # Find result line and replace with calculated value
+                    new_lines = []
+                    for line in code_lines:
+                        if 'data["result"]' in line and not line.strip().startswith('#'):
+                            # Replace static value with calculated result
+                            new_lines.extend(calc_lines)
+                            new_lines.append('data["result"] = calc_result')
+                        else:
+                            new_lines.append(line)
+                    code_lines = new_lines
+            
+            return "\n".join(code_lines)
+        
+        # Pattern 2: Extract calculation result if mentioned
+        calc_match = re.search(r"(\d+)\s*[+\-*/]\s*(\d+)", task_description)
+        if calc_match:
+            a, b = int(calc_match.group(1)), int(calc_match.group(2))
+            op_match = re.search(r"([+\-*/])", task_description)
+            op = op_match.group(1) if op_match else "+"
+            
+            code_lines.append(f'# Calculate result')
+            if op == "+":
+                code_lines.append(f'calc_result = {a} + {b}')
+            elif op == "-":
+                code_lines.append(f'calc_result = {a} - {b}')
+            elif op == "*":
+                code_lines.append(f'calc_result = {a} * {b}')
+            elif op == "/":
+                code_lines.append(f'calc_result = {a} / {b}')
+            else:
+                code_lines.append(f'calc_result = {a} + {b}')
+            
+            code_lines.append(f'data["calculation"] = "{a} {op} {b}"')
+            code_lines.append(f'data["result"] = calc_result')
+        
+        # Extract step number
+        step_match = re.search(r"step:\s*(\d+)", task_description, re.IGNORECASE)
+        if step_match:
+            code_lines.append(f'data["step"] = {int(step_match.group(1))}')
+        
+        # Extract message
+        msg_match = re.search(r'message:\s*"([^"]+)"', task_description, re.IGNORECASE)
+        if msg_match:
+            code_lines.append(f'data["message"] = "{msg_match.group(1)}"')
+        
+        # If we have workflow-related fields
+        if "workflow" in task_lower:
+            workflow_match = re.search(r'workflow_id:\s*"([^"]+)"', task_description, re.IGNORECASE)
+            if workflow_match:
+                code_lines.append(f'data["workflow_id"] = "{workflow_match.group(1)}"')
+            
+            current_step_match = re.search(r'current_step:\s*(\d+)', task_description, re.IGNORECASE)
+            if current_step_match:
+                code_lines.append(f'data["current_step"] = {int(current_step_match.group(1))}')
+            
+            total_steps_match = re.search(r'total_steps:\s*(\d+)', task_description, re.IGNORECASE)
+            if total_steps_match:
+                code_lines.append(f'data["total_steps"] = {int(total_steps_match.group(1))}')
+            
+            if "results" in task_lower and "results:" in task_description:
+                code_lines.append(f'data["results"] = []')
+            
+            if "status" in task_lower:
+                status_match = re.search(r'status:\s*"([^"]+)"', task_description, re.IGNORECASE)
+                if status_match:
+                    code_lines.append(f'data["status"] = "{status_match.group(1)}"')
+                elif "in_progress" in task_lower:
+                    code_lines.append(f'data["status"] = "in_progress"')
+                elif "completed" in task_lower:
+                    code_lines.append(f'data["status"] = "completed"')
+        
+        # Return the code
+        return "\n".join(code_lines)
+    
+    def _generate_json_update_code(self, task_description: str, task_lower: str, filename: str) -> str:
+        """Generate code to update JSON file based on task description.
+        
+        Args:
+            task_description: Task description
+            task_lower: Lowercase version
+            filename: JSON file path
+            
+        Returns:
+            Python code to update the data dict
+        """
+        import re
+        update_lines = []
+        
+        # Extract calculation and add to results array
+        calc_match = re.search(r"(\d+)\s*[+\-*/]\s*(\d+)", task_description)
+        if calc_match and "add" in task_lower and "result" in task_lower:
+            a, b = int(calc_match.group(1)), int(calc_match.group(2))
+            op_match = re.search(r"([+\-*/])", task_description)
+            op = op_match.group(1) if op_match else "*"
+            
+            if op == "+":
+                result = a + b
+            elif op == "-":
+                result = a - b
+            elif op == "*":
+                result = a * b
+            elif op == "/":
+                result = a / b
+            else:
+                result = a * b
+            
+            update_lines.append(f"# Calculate and add to results")
+            update_lines.append(f"calc_result = {a} {op} {b}")
+            update_lines.append(f'if "results" not in data:')
+            update_lines.append(f'    data["results"] = []')
+            update_lines.append(f'data["results"].append(calc_result)')
+        
+        # Update current_step
+        step_match = re.search(r"current_step.*?(\d+)", task_description, re.IGNORECASE)
+        if step_match:
+            new_step = int(step_match.group(1))
+            update_lines.append(f'data["current_step"] = {new_step}')
+        
+        # Update step number (for example 5) - look for "step to X" or "step: X" or "step field to X"
+        step_num_match = re.search(r"step\s+(?:field\s+)?(?:to\s+)?(\d+)", task_description, re.IGNORECASE)
+        if step_num_match:
+            new_step = int(step_num_match.group(1))
+            update_lines.append(f'data["step"] = {new_step}')
+        
+        # Update status
+        if "completed" in task_lower:
+            update_lines.append(f'data["status"] = "completed"')
+        elif "in_progress" in task_lower:
+            update_lines.append(f'data["status"] = "in_progress"')
+        
+        # Calculate total if mentioned
+        if "total" in task_lower and "sum" in task_lower and "results" in task_lower:
+            update_lines.append(f'# Calculate sum of results')
+            update_lines.append(f'if "results" in data and isinstance(data["results"], list):')
+            update_lines.append(f'    data["total"] = sum(data["results"])')
+        
+        # Handle "result + 1" or similar calculations
+        if "result" in task_lower and ("+" in task_description or "-" in task_description or "*" in task_description or "/" in task_description):
+            calc_match = re.search(r"result\s*([+\-*/])\s*(\d+)", task_description, re.IGNORECASE)
+            if calc_match:
+                op = calc_match.group(1)
+                val = int(calc_match.group(2))
+                if op == "+":
+                    update_lines.append(f'if "result" in data:')
+                    update_lines.append(f'    data["result"] = data["result"] + {val}')
+                elif op == "-":
+                    update_lines.append(f'if "result" in data:')
+                    update_lines.append(f'    data["result"] = data["result"] - {val}')
+                elif op == "*":
+                    update_lines.append(f'if "result" in data:')
+                    update_lines.append(f'    data["result"] = data["result"] * {val}')
+                elif op == "/":
+                    update_lines.append(f'if "result" in data:')
+                    update_lines.append(f'    data["result"] = data["result"] / {val}')
+        
+        if not update_lines:
+            return "    pass  # No updates needed"
+        
+        # Indent all lines for proper code structure
+        indented_lines = ["    " + line if line.strip() and not line.strip().startswith("#") else "    " + line for line in update_lines]
+        return "\n".join(indented_lines)

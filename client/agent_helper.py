@@ -10,12 +10,13 @@ Minimizes boilerplate code in examples.
 """
 
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from client.filesystem_helpers import FilesystemHelper
 from client.sandbox_executor import SandboxExecutor
 from client.tool_selector import ToolSelector
 from client.code_generator import CodeGenerator
+from config.schema import OptimizationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,7 @@ class AgentHelper:
         executor: SandboxExecutor,
         tool_selector: Optional[ToolSelector] = None,
         code_generator: Optional[CodeGenerator] = None,
+        optimization_config: Optional[OptimizationConfig] = None,
     ):
         """Initialize agent helper.
 
@@ -37,14 +39,19 @@ class AgentHelper:
             executor: SandboxExecutor instance
             tool_selector: Optional ToolSelector (creates default if None)
             code_generator: Optional CodeGenerator (creates default if None)
+            optimization_config: Optional OptimizationConfig (defaults to enabled)
         """
         self.fs_helper = fs_helper
         self.executor = executor
         self.tool_selector = tool_selector or ToolSelector()
         self.code_generator = code_generator or CodeGenerator()
+        self.optimization_config = optimization_config or OptimizationConfig()
+        self._tool_cache = None
 
     def discover_tools(self, verbose: bool = True) -> Dict[str, List[str]]:
         """Discover all available tools from filesystem.
+        
+        Optimized to be under 100ms using fast directory operations and caching.
 
         Args:
             verbose: Whether to print discovery progress
@@ -52,6 +59,26 @@ class AgentHelper:
         Returns:
             Dict mapping server names to lists of tool names
         """
+        import time
+        start_time = time.time()
+        
+        # Use parallel discovery if enabled (optimization)
+        if (self.optimization_config.enabled and 
+            self.optimization_config.parallel_discovery):
+            result = self._discover_tools_parallel(verbose)
+        else:
+            result = self._discover_tools_sequential(verbose)
+        
+        elapsed = (time.time() - start_time) * 1000  # Convert to ms
+        if verbose and elapsed > 100:
+            logger.warning(f"Tool discovery took {elapsed:.1f}ms (target: <100ms)")
+        elif verbose:
+            logger.debug(f"Tool discovery took {elapsed:.1f}ms")
+        
+        return result
+    
+    def _discover_tools_sequential(self, verbose: bool = True) -> Dict[str, List[str]]:
+        """Discover tools sequentially (original slow path)."""
         discovered_servers = {}
         servers = self.fs_helper.list_servers()
 
@@ -65,6 +92,35 @@ class AgentHelper:
                 print(f"   {server_name}: {len(tools)} tools")
 
         return discovered_servers
+    
+    def _discover_tools_parallel(self, verbose: bool = True) -> Dict[str, List[str]]:
+        """Discover tools in parallel (optimization)."""
+        import asyncio
+        
+        servers = self.fs_helper.list_servers()
+        
+        async def read_tools_async(server):
+            # Run in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            tools = await loop.run_in_executor(
+                None, self.fs_helper.list_tools, server
+            )
+            return (server, tools)
+        
+        async def gather_all():
+            tasks = [read_tools_async(server) for server in servers]
+            results = await asyncio.gather(*tasks)
+            return {server: tools for server, tools in results}
+        
+        discovered = asyncio.run(gather_all())
+        
+        if verbose:
+            print(f"   Found {len(servers)} servers: {servers} (parallel discovery)")
+            for server_name, tools in discovered.items():
+                if tools:
+                    print(f"   {server_name}: {len(tools)} tools")
+        
+        return discovered
 
     def select_tools_for_task(
         self,
@@ -88,19 +144,95 @@ class AgentHelper:
         if verbose:
             print(f"   Task: {task_description}")
 
-        tool_descriptions = self.tool_selector.get_tool_descriptions(
-            self.fs_helper, discovered_servers
-        )
+        # Get tool descriptions (with caching if enabled)
+        tool_descriptions = self._get_tool_descriptions(discovered_servers)
 
         if verbose:
             print(f"   Extracted {len(tool_descriptions)} tool descriptions")
 
-        required_tools = self.tool_selector.select_tools(task_description, tool_descriptions)
+        # Pass GPU flag to tool selector
+        use_gpu = (self.optimization_config.enabled and 
+                   self.optimization_config.gpu_embeddings)
+        
+        required_tools = self.tool_selector.select_tools(
+            task_description, tool_descriptions, use_gpu=use_gpu
+        )
 
         if verbose:
             print(f"   Selected tools: {required_tools}")
 
         return required_tools
+    
+    def _get_tool_descriptions(
+        self, discovered_servers: Dict[str, List[str]]
+    ) -> Dict[Tuple[str, str], str]:
+        """Get tool descriptions with caching if enabled.
+        
+        Args:
+            discovered_servers: Dict mapping server names to lists of tool names
+            
+        Returns:
+            Dict mapping (server_name, tool_name) tuples to descriptions
+        """
+        # Check if tool cache is enabled
+        if (self.optimization_config.enabled and 
+            self.optimization_config.tool_cache):
+            if self._tool_cache is None:
+                from client.tool_cache import get_tool_cache
+                self._tool_cache = get_tool_cache(
+                    cache_file=self.optimization_config.tool_cache_file
+                )
+            
+            return self._get_tool_descriptions_cached(discovered_servers)
+        else:
+            # Slow path: no caching
+            return self.tool_selector.get_tool_descriptions(
+                self.fs_helper, discovered_servers
+            )
+    
+    def _get_tool_descriptions_cached(
+        self, discovered_servers: Dict[str, List[str]]
+    ) -> Dict[tuple, str]:
+        """Get tool descriptions using cache (optimization).
+        
+        Args:
+            discovered_servers: Dict mapping server names to lists of tool names
+            
+        Returns:
+            Dict mapping (server_name, tool_name) tuples to descriptions
+        """
+        from pathlib import Path
+        from client.tool_selector import extract_tool_description
+        
+        tool_descriptions = {}
+        
+        for server_name, tools in discovered_servers.items():
+            for tool_name in tools:
+                source_file = Path(self.fs_helper.servers_dir) / server_name / f"{tool_name}.py"
+                
+                # Try cache first
+                cached_desc = self._tool_cache.get_tool_description(
+                    server_name, tool_name, source_file
+                )
+                
+                if cached_desc:
+                    tool_descriptions[(server_name, tool_name)] = cached_desc
+                else:
+                    # Cache miss, read and cache
+                    tool_code = self.fs_helper.read_tool_file(server_name, tool_name)
+                    if tool_code:
+                        description = extract_tool_description(tool_code)
+                        full_description = f"{server_name} {tool_name}: {description}"
+                        tool_descriptions[(server_name, tool_name)] = full_description
+                        
+                        # Cache for next time
+                        self._tool_cache.set_tool_description(
+                            server_name, tool_name, full_description, source_file
+                        )
+        
+        # Save cache at end
+        self._tool_cache.save()
+        return tool_descriptions
 
     def execute_task(
         self,

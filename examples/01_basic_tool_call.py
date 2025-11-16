@@ -53,10 +53,11 @@ def main() -> None:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,  # Pass optimization config
     )
 
     # Initialize agent helper (combines discovery, selection, generation, execution)
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Define task - framework will auto-generate appropriate code
     task_description = "Calculate 5 + 3 and get weather for San Francisco"

@@ -43,9 +43,10 @@ def session_1_write_state(config) -> tuple[bool, str]:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Write state to workspace
     task_description = """
@@ -101,9 +102,10 @@ def session_2_read_state(config) -> tuple[bool, str]:
     executor = SandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
+        optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor)
+    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
 
     # Read state from workspace
     task_description = """
@@ -111,7 +113,7 @@ def session_2_read_state(config) -> tuple[bool, str]:
     Print the contents of the file.
     Verify that /workspace exists and is mounted.
     Confirm that you can read the state file from the previous session.
-    Calculate the next step (result + 1) and save it back to /workspace/state.json with step: 2.
+    Update the step field to 2 and save it back to /workspace/state.json.
     """
 
     print("\nExecuting Session 2...")

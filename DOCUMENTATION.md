@@ -554,10 +554,15 @@ python examples/03_data_filtering.py
 python examples/04_control_flow.py
 ```
 
-### Example 5: State Persistence
+### Example 5: State Persistence (Cross-Session)
 - Saving and loading state via filesystem
-- Resuming work across multiple executions
-- Persistent data storage
+- TRUE cross-session persistence across separate executions
+- Resuming work from previous sessions
+- Persistent data storage with volume mounts
+
+This example demonstrates true cross-session persistence:
+- Session 1: Write state to /workspace (sandbox destroyed after)
+- Session 2: Read state from /workspace (new sandbox, same workspace)
 
 **Run:**
 ```bash
@@ -582,6 +587,24 @@ python examples/06_skills.py
 **Run:**
 ```bash
 python examples/07_filesystem_operations.py
+```
+
+### Example 8: Cross-Session State Persistence (Comprehensive)
+- Multi-session workflow demonstration
+- True cross-session state persistence across 3+ separate executions
+- Resuming and building on previous session's state
+- Long-running workflow resumability
+
+This comprehensive example shows a complete multi-session workflow:
+- Session 1: Initialize workflow state
+- Session 2: Continue workflow (reads Session 1 state)
+- Session 3: Complete workflow (reads Sessions 1 & 2 state)
+
+Each session runs in a separate sandbox execution but shares the same workspace.
+
+**Run:**
+```bash
+python examples/08_cross_session_persistence.py
 ```
 
 ### Common Patterns
@@ -615,18 +638,19 @@ The framework automatically:
 
 ### Examples Verification
 
-All 7 examples have been verified to:
+All 8 examples have been verified to:
 - ✅ Have valid Python syntax
 - ✅ Follow proper structure
 - ✅ Cover all key concepts from the Anthropic blog post:
   - Progressive disclosure
   - Context-efficient results
   - Control flow
-  - State persistence
+  - State persistence (including true cross-session persistence)
   - Skills
   - Filesystem operations
   - Data filtering
   - Multi-tool chaining
+  - Cross-session workflow resumability
 
 ---
 

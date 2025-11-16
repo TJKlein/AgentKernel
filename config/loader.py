@@ -20,6 +20,7 @@ def load_config_from_env() -> Dict[str, Any]:
         "mcp_servers": [],
         "guardrails": {},
         "execution": {},
+        "optimizations": {},
         "logging": {},
     }
 
@@ -50,6 +51,15 @@ def load_config_from_env() -> Dict[str, Any]:
         "servers_dir": os.environ.get("SERVERS_DIR", "./servers"),
         "skills_dir": os.environ.get("SKILLS_DIR", "./skills"),
         "allow_network_access": os.environ.get("ALLOW_NETWORK_ACCESS", "false").lower() == "true",
+    }
+
+    # Load optimization config
+    config["optimizations"] = {
+        "enabled": os.environ.get("OPTIMIZATIONS_ENABLED", "true").lower() == "true",
+        "sandbox_pooling": os.environ.get("OPTIMIZATION_SANDBOX_POOLING", "false").lower() == "true",
+        "tool_cache": os.environ.get("OPTIMIZATION_TOOL_CACHE", "true").lower() == "true",
+        "gpu_embeddings": os.environ.get("OPTIMIZATION_GPU_EMBEDDINGS", "true").lower() == "true",
+        "parallel_discovery": os.environ.get("OPTIMIZATION_PARALLEL_DISCOVERY", "true").lower() == "true",
     }
 
     # Load logging config

@@ -2,9 +2,11 @@
 
 import json
 import csv
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import logging
+from functools import lru_cache
 
 from pydantic import BaseModel, ValidationError
 
@@ -50,25 +52,95 @@ class FilesystemHelper:
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.servers_dir.mkdir(parents=True, exist_ok=True)
         self.skills_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Cache for tool discovery (server/tool lists)
+        self._servers_cache: Optional[List[str]] = None
+        self._servers_cache_mtime: Optional[float] = None
+        self._tools_cache: Dict[str, List[str]] = {}
+        self._tools_cache_mtime: Dict[str, float] = {}
 
     def list_servers(self) -> List[str]:
-        """List available MCP servers in the servers directory."""
+        """List available MCP servers in the servers directory.
+        
+        Optimized using os.scandir() and caching for sub-100ms performance.
+        """
+        servers_path = str(self.servers_dir)
+        
+        # Check cache validity using directory mtime
+        if os.path.exists(servers_path):
+            try:
+                current_mtime = os.path.getmtime(servers_path)
+                if (self._servers_cache is not None and 
+                    self._servers_cache_mtime == current_mtime):
+                    return self._servers_cache
+            except OSError:
+                pass
+        
+        # Scan directory
         servers = []
-        if self.servers_dir.exists():
-            for item in self.servers_dir.iterdir():
-                if item.is_dir() and not item.name.startswith("__"):
-                    servers.append(item.name)
-        return sorted(servers)
+        if os.path.exists(servers_path):
+            try:
+                # Use os.scandir() - much faster than Path.iterdir()
+                with os.scandir(servers_path) as entries:
+                    for entry in entries:
+                        if entry.is_dir() and not entry.name.startswith("__"):
+                            servers.append(entry.name)
+            except (OSError, PermissionError) as e:
+                logger.warning(f"Error scanning servers directory: {e}")
+        
+        servers = sorted(servers)
+        
+        # Update cache
+        if os.path.exists(servers_path):
+            try:
+                self._servers_cache = servers
+                self._servers_cache_mtime = os.path.getmtime(servers_path)
+            except OSError:
+                pass
+        
+        return servers
 
     def list_tools(self, server_name: str) -> List[str]:
-        """List available tools for a server."""
-        server_dir = self.servers_dir / server_name
+        """List available tools for a server.
+        
+        Optimized using os.scandir() and caching for sub-100ms performance.
+        """
+        server_path = str(self.servers_dir / server_name)
+        
+        # Check cache validity using directory mtime
+        if os.path.exists(server_path):
+            try:
+                current_mtime = os.path.getmtime(server_path)
+                if (server_name in self._tools_cache and 
+                    self._tools_cache_mtime.get(server_name) == current_mtime):
+                    return self._tools_cache[server_name]
+            except OSError:
+                pass
+        
+        # Scan directory
         tools = []
-        if server_dir.exists():
-            for item in server_dir.iterdir():
-                if item.is_file() and item.suffix == ".py" and not item.name.startswith("__"):
-                    tools.append(item.stem)
-        return sorted(tools)
+        if os.path.exists(server_path):
+            try:
+                # Use os.scandir() - much faster than Path.iterdir()
+                with os.scandir(server_path) as entries:
+                    for entry in entries:
+                        if entry.is_file() and entry.name.endswith(".py") and not entry.name.startswith("__"):
+                            # Remove .py extension
+                            tools.append(entry.name[:-3])
+            except (OSError, PermissionError) as e:
+                logger.warning(f"Error scanning tools directory for {server_name}: {e}")
+        
+        tools = sorted(tools)
+        
+        # Update cache
+        if os.path.exists(server_path):
+            try:
+                self._tools_cache[server_name] = tools
+                self._tools_cache_mtime[server_name] = os.path.getmtime(server_path)
+            except OSError:
+                pass
+        
+        return tools
 
     def read_tool_file(self, server_name: str, tool_name: str) -> Optional[str]:
         """Read a tool file."""

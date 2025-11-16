@@ -12,7 +12,7 @@ except ImportError:
 
 from client.base import CodeExecutor, ExecutionResult, ValidationResult
 from client.guardrails import GuardrailValidatorImpl
-from config.schema import ExecutionConfig, GuardrailConfig
+from config.schema import ExecutionConfig, GuardrailConfig, OptimizationConfig
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +24,20 @@ class SandboxExecutor(CodeExecutor):
         self,
         execution_config: ExecutionConfig,
         guardrail_config: Optional[GuardrailConfig] = None,
+        optimization_config: Optional[OptimizationConfig] = None,
     ):
-        """Initialize sandbox executor."""
+        """Initialize sandbox executor.
+        
+        Args:
+            execution_config: Execution configuration
+            guardrail_config: Guardrail configuration
+            optimization_config: Optimization configuration (defaults to enabled)
+        """
         self.execution_config = execution_config
         self.guardrail_config = guardrail_config or GuardrailConfig()
+        self.optimization_config = optimization_config or OptimizationConfig()
         self.guardrail_validator = GuardrailValidatorImpl(self.guardrail_config)
+        self._sandbox_pool = None
 
     def validate_code(self, code: str) -> ValidationResult:
         """Validate code before execution."""
@@ -149,20 +158,52 @@ class SandboxExecutor(CodeExecutor):
             # Mount workspace directory for true persistence across executions
             workspace_path_abs = workspace_path.resolve()
             
-            # Use unique sandbox name to avoid stale rootfs state
-            # Reusing the same sandbox name can cause virtiofs mount issues
-            import uuid
-            sandbox_name = f"code-execution-{uuid.uuid4().hex[:8]}"
-            
-            async with PythonSandbox.create(
-                name=sandbox_name,
-                volumes=[(str(workspace_path_abs), "/workspace")]
-            ) as sandbox:
-                return await self._execute_in_sandbox(sandbox, code)
+            # Use sandbox pooling if enabled (optimization)
+            if (self.optimization_config.enabled and 
+                self.optimization_config.sandbox_pooling):
+                return await self._execute_with_pool(workspace_path_abs, code)
+            else:
+                # Original slow path for debugging
+                import uuid
+                sandbox_name = f"code-execution-{uuid.uuid4().hex[:8]}"
+                
+                async with PythonSandbox.create(
+                    name=sandbox_name,
+                    volumes=[(str(workspace_path_abs), "/workspace")]
+                ) as sandbox:
+                    return await self._execute_in_sandbox(sandbox, code)
 
         except Exception as e:
             logger.error(f"Sandbox execution error: {e}", exc_info=True)
             return None, str(e)
+    
+    async def _execute_with_pool(
+        self, workspace_path_abs: Path, code: str
+    ) -> tuple[Any, Optional[str]]:
+        """Execute code using sandbox pool (optimization).
+        
+        Args:
+            workspace_path_abs: Absolute workspace path
+            code: Code to execute
+            
+        Returns:
+            Tuple of (output, error)
+        """
+        # Initialize pool if needed
+        if self._sandbox_pool is None:
+            from client.sandbox_pool import get_sandbox_pool
+            self._sandbox_pool = await get_sandbox_pool(
+                pool_size=self.optimization_config.sandbox_pool_size,
+                workspace_dir=str(workspace_path_abs)
+            )
+        
+        # Acquire sandbox from pool
+        sandbox = await self._sandbox_pool.acquire()
+        try:
+            return await self._execute_in_sandbox(sandbox, code)
+        finally:
+            # Return sandbox to pool
+            await self._sandbox_pool.release(sandbox)
 
     async def _execute_in_sandbox(
         self,
@@ -558,7 +599,18 @@ except Exception as e:
         Per Anthropic article: tools are filesystem-based Python modules.
         
         Performance optimization: Only writes files if they don't exist or content changed.
+        Can be disabled via optimization_config.file_content_cache = False
         """
+        # Check if file caching is enabled
+        use_cache = (self.optimization_config.enabled and 
+                     self.optimization_config.file_content_cache)
+        
+        if not use_cache:
+            # Slow path: always write files (for debugging)
+            self._write_files_always(workspace_path, servers_path, client_path, skills_path)
+            return
+        
+        # Fast path: only write changed files
         import hashlib
         
         workspace_path = workspace_path.resolve()
@@ -641,6 +693,68 @@ except Exception as e:
             for skill_file in sorted(skills_path.glob("*.py")):
                 target_skill = workspace_path / "skills" / skill_file.name
                 _write_if_needed(skill_file, target_skill)
+    
+    def _write_files_always(
+        self,
+        workspace_path: Path,
+        servers_path: Path,
+        client_path: Path,
+        skills_path: Path,
+    ) -> None:
+        """Write all files always (slow path for debugging).
+        
+        This is the original implementation without caching.
+        Used when file_content_cache is disabled.
+        """
+        workspace_path = workspace_path.resolve()
+        logger.debug(f"Writing all files to workspace (no cache): {workspace_path}")
+        
+        # Create directory structure
+        (workspace_path / "client").mkdir(parents=True, exist_ok=True)
+        (workspace_path / "servers").mkdir(parents=True, exist_ok=True)
+        (workspace_path / "skills").mkdir(parents=True, exist_ok=True)
+        
+        # Write client files
+        if client_path.exists():
+            client_init_path = workspace_path / "client" / "__init__.py"
+            client_init_path.write_text(
+                '"""Client module for sandbox execution."""\n', encoding="utf-8"
+            )
+            
+            mock_client_file = client_path / "mock_mcp_client.py"
+            real_client_file = client_path / "mcp_client.py"
+            mcp_client_path = workspace_path / "client" / "mcp_client.py"
+            
+            if mock_client_file.exists():
+                content = mock_client_file.read_text(encoding="utf-8")
+                mcp_client_path.write_text(content, encoding="utf-8")
+            elif real_client_file.exists():
+                content = real_client_file.read_text(encoding="utf-8")
+                mcp_client_path.write_text(content, encoding="utf-8")
+        
+        # Write server files
+        if servers_path.exists():
+            for server_dir in sorted(servers_path.iterdir()):
+                if server_dir.is_dir():
+                    server_name = server_dir.name
+                    target_server_dir = workspace_path / "servers" / server_name
+                    target_server_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    for tool_file in sorted(server_dir.glob("*.py")):
+                        if tool_file.name != "__init__.py":
+                            content = tool_file.read_text(encoding="utf-8")
+                            (target_server_dir / tool_file.name).write_text(content, encoding="utf-8")
+                    
+                    init_file = server_dir / "__init__.py"
+                    if init_file.exists():
+                        content = init_file.read_text(encoding="utf-8")
+                        (target_server_dir / "__init__.py").write_text(content, encoding="utf-8")
+        
+        # Write skill files
+        if skills_path.exists():
+            for skill_file in sorted(skills_path.glob("*.py")):
+                content = skill_file.read_text(encoding="utf-8")
+                (workspace_path / "skills" / skill_file.name).write_text(content, encoding="utf-8")
     
     def _generate_verification_code(self) -> str:
         """Generate minimal code to verify files exist and set up Python path.

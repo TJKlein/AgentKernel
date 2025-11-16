@@ -42,6 +42,19 @@ class GuardrailConfig(BaseModel):
     blocked_patterns: List[str] = Field(default_factory=list, description="Blocked code patterns")
 
 
+class OptimizationConfig(BaseModel):
+    """Configuration for performance optimizations."""
+
+    enabled: bool = Field(default=True, description="Enable all optimizations")
+    sandbox_pooling: bool = Field(default=False, description="Enable sandbox pooling (experimental - disabled by default)")
+    sandbox_pool_size: int = Field(default=3, description="Number of sandboxes in pool")
+    tool_cache: bool = Field(default=True, description="Enable tool description caching")
+    tool_cache_file: str = Field(default=".tool_cache.json", description="Tool cache file path")
+    gpu_embeddings: bool = Field(default=True, description="Use GPU for embeddings if available")
+    parallel_discovery: bool = Field(default=True, description="Enable parallel tool discovery")
+    file_content_cache: bool = Field(default=True, description="Enable file content caching")
+
+
 class ExecutionConfig(BaseModel):
     """Configuration for code execution."""
 
@@ -105,6 +118,9 @@ class AppConfig(BaseModel):
     )
     execution: ExecutionConfig = Field(
         default_factory=ExecutionConfig, description="Execution configuration"
+    )
+    optimizations: OptimizationConfig = Field(
+        default_factory=OptimizationConfig, description="Performance optimization configuration"
     )
     tool_mappings: List[ToolMappingConfig] = Field(
         default_factory=list, description="Tool mappings"

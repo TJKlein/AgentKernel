@@ -72,8 +72,12 @@ class ToolSelector:
         self.use_semantic_search = use_semantic_search and HAS_SENTENCE_TRANSFORMERS
         self._model: Optional[Any] = None
 
-    def _get_model(self) -> Optional[Any]:
-        """Lazy load the sentence transformer model (uses shared cache)."""
+    def _get_model(self, use_gpu: bool = True) -> Optional[Any]:
+        """Lazy load the sentence transformer model (uses shared cache).
+        
+        Args:
+            use_gpu: Whether to use GPU if available (from config)
+        """
         global _SHARED_MODEL
         
         if not self.use_semantic_search:
@@ -97,11 +101,24 @@ class ToolSelector:
                     return self._model
                 
                 try:
-                    logger.info("Loading sentence-transformers model for semantic search...")
+                    # Check for GPU support (optimization)
+                    device = "cpu"
+                    if use_gpu:
+                        try:
+                            import torch
+                            if torch.cuda.is_available():
+                                device = "cuda"
+                                logger.info("GPU available, using CUDA for embeddings")
+                            else:
+                                logger.debug("GPU not available, using CPU")
+                        except ImportError:
+                            logger.debug("PyTorch not available, using CPU")
+                    
+                    logger.info(f"Loading sentence-transformers model on {device}...")
                     # Use a lightweight, fast model
-                    _SHARED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+                    _SHARED_MODEL = SentenceTransformer("all-MiniLM-L6-v2", device=device)
                     self._model = _SHARED_MODEL
-                    logger.info("Model loaded and cached for future use")
+                    logger.info(f"Model loaded on {device} and cached for future use")
                 except Exception as e:
                     logger.warning(f"Failed to load sentence-transformers model: {e}")
                     self.use_semantic_search = False
@@ -109,8 +126,16 @@ class ToolSelector:
         else:
             # No threading, just load directly
             try:
-                logger.info("Loading sentence-transformers model for semantic search...")
-                self._model = SentenceTransformer("all-MiniLM-L6-v2")
+                device = "cpu"
+                if use_gpu:
+                    try:
+                        import torch
+                        device = "cuda" if torch.cuda.is_available() else "cpu"
+                    except ImportError:
+                        pass
+                
+                logger.info(f"Loading sentence-transformers model on {device}...")
+                self._model = SentenceTransformer("all-MiniLM-L6-v2", device=device)
                 _SHARED_MODEL = self._model
             except Exception as e:
                 logger.warning(f"Failed to load sentence-transformers model: {e}")
@@ -148,18 +173,20 @@ class ToolSelector:
         self,
         task_description: str,
         tool_descriptions: Dict[Tuple[str, str], str],
+        use_gpu: bool = True,
     ) -> Dict[str, List[str]]:
         """Select relevant tools for a task using semantic search.
 
         Args:
             task_description: Description of the task to accomplish
             tool_descriptions: Dict mapping (server_name, tool_name) to descriptions
+            use_gpu: Whether to use GPU if available (from config)
 
         Returns:
             Dict mapping server names to lists of selected tool names
         """
         if self.use_semantic_search:
-            return self._semantic_search_tools(task_description, tool_descriptions)
+            return self._semantic_search_tools(task_description, tool_descriptions, use_gpu=use_gpu)
         else:
             return self._keyword_match_tools(task_description, tool_descriptions)
 
@@ -167,47 +194,65 @@ class ToolSelector:
         self,
         task_description: str,
         tool_descriptions: Dict[Tuple[str, str], str],
+        use_gpu: bool = True,
     ) -> Dict[str, List[str]]:
-        """Use semantic search to find relevant tools."""
-        model = self._get_model()
+        """Use semantic search to find relevant tools.
+        
+        Args:
+            task_description: Task description
+            tool_descriptions: Tool descriptions  
+            use_gpu: Whether to use GPU if available (from config)
+        """
+        model = self._get_model(use_gpu=use_gpu)
         if model is None:
             logger.warning("Falling back to keyword matching")
             return self._keyword_match_tools(task_description, tool_descriptions)
 
         try:
-            # Create embeddings for task
+            # Determine device for PyTorch operations
+            import torch
+            device = "cuda" if (use_gpu and torch.cuda.is_available()) else "cpu"
+            
+            # Create embeddings for task (as tensor for efficient computation)
             task_embedding = model.encode(
-                task_description, convert_to_tensor=False, show_progress_bar=False
+                task_description, convert_to_tensor=True, show_progress_bar=False
             )
+            task_embedding = task_embedding.to(device)
 
-            # Create embeddings for all tools
+            # Create embeddings for all tools (as tensor for efficient computation)
             tool_texts = list(tool_descriptions.values())
             tool_keys = list(tool_descriptions.keys())
 
             logger.debug(f"Encoding {len(tool_texts)} tool descriptions...")
             tool_embeddings = model.encode(
-                tool_texts, convert_to_tensor=False, show_progress_bar=False
+                tool_texts, convert_to_tensor=True, show_progress_bar=False
             )
+            tool_embeddings = tool_embeddings.to(device)
 
-            # Calculate cosine similarities
-            from numpy import dot
-            from numpy.linalg import norm
-
-            similarities = []
-            for tool_emb in tool_embeddings:
-                # Cosine similarity
-                similarity = dot(task_embedding, tool_emb) / (norm(task_embedding) * norm(tool_emb))
-                similarities.append(float(similarity))
-
+            # Calculate cosine similarities using PyTorch
+            # Normalize embeddings for cosine similarity
+            task_embedding_norm = torch.nn.functional.normalize(task_embedding, p=2, dim=0)
+            tool_embeddings_norm = torch.nn.functional.normalize(tool_embeddings, p=2, dim=1)
+            
+            # Compute cosine similarity: dot product of normalized vectors
+            # Shape: (num_tools,) - one similarity score per tool
+            similarities = torch.mm(
+                tool_embeddings_norm, 
+                task_embedding_norm.unsqueeze(1)
+            ).squeeze(1)
+            
             # Get top-k tools above threshold
-            indexed_sims = list(enumerate(similarities))
-            indexed_sims.sort(key=lambda x: x[1], reverse=True)
-            top_indices = [idx for idx, _ in indexed_sims[: self.top_k]]
+            # Get top-k indices sorted by similarity (descending)
+            top_k = min(self.top_k, len(similarities))
+            top_similarities, top_indices = torch.topk(similarities, k=top_k, largest=True)
+            
+            # Convert to CPU and Python lists for threshold filtering
+            top_similarities = top_similarities.cpu().tolist()
+            top_indices = top_indices.cpu().tolist()
 
             selected_tools = {}
 
-            for idx in top_indices:
-                similarity = similarities[idx]
+            for idx, similarity in zip(top_indices, top_similarities):
                 if similarity >= self.similarity_threshold:
                     server_name, tool_name = tool_keys[idx]
                     if server_name not in selected_tools:
