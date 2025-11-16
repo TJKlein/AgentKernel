@@ -50,10 +50,15 @@ python examples/04_control_flow.py
 ```
 
 ### 05_state_persistence.py
-**State Persistence**
+**State Persistence (Cross-Session)**
 - Saving and loading state via filesystem
-- Resuming work across multiple executions
-- Persistent data storage
+- TRUE cross-session persistence across separate executions
+- Resuming work from previous sessions
+- Persistent data storage with volume mounts
+
+This example demonstrates true cross-session persistence:
+- Session 1: Write state to /workspace (sandbox destroyed after)
+- Session 2: Read state from /workspace (new sandbox, same workspace)
 
 **Run:**
 ```bash
@@ -82,12 +87,61 @@ python examples/06_skills.py
 python examples/07_filesystem_operations.py
 ```
 
+### 08_cross_session_persistence.py
+**Cross-Session State Persistence (Comprehensive)**
+- Multi-session workflow demonstration
+- True cross-session state persistence across 3+ separate executions
+- Resuming and building on previous session's state
+- Long-running workflow resumability
+
+This comprehensive example shows a complete multi-session workflow:
+- Session 1: Initialize workflow state
+- Session 2: Continue workflow (reads Session 1 state)
+- Session 3: Complete workflow (reads Sessions 1 & 2 state)
+
+Each session runs in a separate sandbox execution but shares the same workspace.
+
+**Run:**
+```bash
+python examples/08_cross_session_persistence.py
+```
+
 ## Prerequisites
 
 All examples require:
 - Virtual environment activated (`.venv`)
 - Microsandbox server running (`msb server start --dev`)
 - Dependencies installed (`pip install -r requirements.txt`)
+
+### Setup Verification
+
+Before running examples, verify your setup:
+
+```bash
+# Activate virtual environment
+source .venv/bin/activate
+
+# Check if all packages are installed
+python check_setup.py
+```
+
+If any packages are missing, install them:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Common Issues
+
+**Missing packages error:**
+- Ensure virtual environment is activated: `source .venv/bin/activate`
+- Verify packages are installed: `pip list | grep -E "(fastmcp|microsandbox|pydantic|sentence-transformers)"`
+- Reinstall if needed: `pip install -r requirements.txt`
+
+**Module not found errors:**
+- Run examples from project root: `python examples/01_basic_tool_call.py`
+- Ensure `servers/` directory exists with tool files
+- Check that `workspace/` directory is writable
 
 ## Common Patterns
 

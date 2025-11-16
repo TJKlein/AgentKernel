@@ -14,11 +14,37 @@ logger = logging.getLogger(__name__)
 class FilesystemHelper:
     """Helper class for filesystem operations."""
 
+    def _find_project_root(self) -> Path:
+        """Find project root by looking for marker files (pyproject.toml, requirements.txt, etc.)."""
+        current = Path.cwd().resolve()
+        
+        # Check current directory and parents
+        for path in [current] + list(current.parents):
+            # Look for project markers
+            markers = ["pyproject.toml", "requirements.txt", ".git", "setup.py"]
+            if any((path / marker).exists() for marker in markers):
+                # Also verify client directory exists (confirms it's the right root)
+                if (path / "client").exists():
+                    return path
+        
+        # Fallback: assume current directory is project root if client exists
+        if (current / "client").exists():
+            return current
+        
+        # Last resort: use current directory
+        logger.warning(f"Could not find project root, using current directory: {current}")
+        return current
+
     def __init__(self, workspace_dir: str, servers_dir: str, skills_dir: str):
         """Initialize filesystem helper."""
-        self.workspace_dir = Path(workspace_dir)
-        self.servers_dir = Path(servers_dir)
-        self.skills_dir = Path(skills_dir)
+        # Find project root first (works regardless of current working directory)
+        project_root = self._find_project_root()
+        logger.debug(f"Project root: {project_root}")
+        
+        # Resolve all paths relative to project root
+        self.workspace_dir = (project_root / workspace_dir.lstrip("./")).resolve()
+        self.servers_dir = (project_root / servers_dir.lstrip("./")).resolve()
+        self.skills_dir = (project_root / skills_dir.lstrip("./")).resolve()
 
         # Create directories if they don't exist
         self.workspace_dir.mkdir(parents=True, exist_ok=True)

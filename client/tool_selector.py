@@ -23,6 +23,15 @@ except ImportError:
     SentenceTransformer = None  # type: ignore
     logger.warning("sentence-transformers not available. Using keyword matching instead.")
 
+# Class-level model cache to avoid reloading the model across instances
+_SHARED_MODEL: Optional[Any] = None
+_SHARED_MODEL_LOCK = None
+try:
+    import threading
+    _SHARED_MODEL_LOCK = threading.Lock()
+except ImportError:
+    pass
+
 
 def extract_tool_description(tool_code: str) -> str:
     """Extract tool description from Python code docstring."""
@@ -64,15 +73,45 @@ class ToolSelector:
         self._model: Optional[Any] = None
 
     def _get_model(self) -> Optional[Any]:
-        """Lazy load the sentence transformer model."""
+        """Lazy load the sentence transformer model (uses shared cache)."""
+        global _SHARED_MODEL
+        
         if not self.use_semantic_search:
             return None
 
-        if self._model is None:
+        # Use instance model if available
+        if self._model is not None:
+            return self._model
+        
+        # Try to use shared model cache (thread-safe)
+        if _SHARED_MODEL is not None:
+            self._model = _SHARED_MODEL
+            return self._model
+        
+        # Load model (with lock if available)
+        if _SHARED_MODEL_LOCK:
+            with _SHARED_MODEL_LOCK:
+                # Double-check after acquiring lock
+                if _SHARED_MODEL is not None:
+                    self._model = _SHARED_MODEL
+                    return self._model
+                
+                try:
+                    logger.info("Loading sentence-transformers model for semantic search...")
+                    # Use a lightweight, fast model
+                    _SHARED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+                    self._model = _SHARED_MODEL
+                    logger.info("Model loaded and cached for future use")
+                except Exception as e:
+                    logger.warning(f"Failed to load sentence-transformers model: {e}")
+                    self.use_semantic_search = False
+                    return None
+        else:
+            # No threading, just load directly
             try:
                 logger.info("Loading sentence-transformers model for semantic search...")
-                # Use a lightweight, fast model
                 self._model = SentenceTransformer("all-MiniLM-L6-v2")
+                _SHARED_MODEL = self._model
             except Exception as e:
                 logger.warning(f"Failed to load sentence-transformers model: {e}")
                 self.use_semantic_search = False

@@ -257,6 +257,8 @@ print(f"{tool_name}() = {{result}}")"""
         if file_ops:
             usage_str = usage_str + "\n\n" + file_ops
 
+        # Code will be executed via script file (not REPL mode) to prevent breaking on errors
+        # No need to wrap in function - the script file execution handles it
         code = (
             header
             + "\n"

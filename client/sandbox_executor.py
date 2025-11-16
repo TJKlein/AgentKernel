@@ -79,14 +79,43 @@ class SandboxExecutor(CodeExecutor):
             logger.error(f"Code execution failed: {e}")
             return ExecutionResult.FAILURE, None, str(e)
 
+    def _find_project_root(self) -> Path:
+        """Find project root by looking for marker files (pyproject.toml, requirements.txt, etc.)."""
+        current = Path.cwd().resolve()
+        
+        # Check current directory and parents
+        for path in [current] + list(current.parents):
+            # Look for project markers
+            markers = ["pyproject.toml", "requirements.txt", ".git", "setup.py"]
+            if any((path / marker).exists() for marker in markers):
+                # Also verify client directory exists (confirms it's the right root)
+                if (path / "client").exists():
+                    return path
+        
+        # Fallback: assume current directory is project root if client exists
+        if (current / "client").exists():
+            return current
+        
+        # Last resort: use current directory
+        logger.warning(f"Could not find project root, using current directory: {current}")
+        return current
+
     async def _execute_async(self, code: str) -> tuple[Any, Optional[str]]:
         """Execute code asynchronously in sandbox."""
         if PythonSandbox is None:
             raise ImportError("microsandbox is not installed")
 
         try:
-            # Prepare workspace with required directories before sandbox creation
-            workspace_path = Path(self.execution_config.workspace_dir)
+            # Find project root first (works regardless of current working directory)
+            project_root = self._find_project_root()
+            logger.debug(f"Project root: {project_root}")
+            
+            # Resolve all paths relative to project root
+            workspace_path = (project_root / self.execution_config.workspace_dir.lstrip("./")).resolve()
+            servers_path = (project_root / self.execution_config.servers_dir.lstrip("./")).resolve()
+            skills_path = (project_root / self.execution_config.skills_dir.lstrip("./")).resolve()
+            client_path = (project_root / "client").resolve()
+            
             workspace_path.mkdir(parents=True, exist_ok=True)
             
             # Ensure client, servers, and skills directories are clean
@@ -97,15 +126,6 @@ class SandboxExecutor(CodeExecutor):
                     # Remove empty directories to ensure fresh state
                     subdir_path.rmdir()
                     logger.debug(f"Removed empty {subdir_path}")
-
-            # Get absolute paths for source directories
-            # Read directly from source - no need to copy to workspace first
-            servers_path = Path(self.execution_config.servers_dir).resolve()
-            skills_path = Path(self.execution_config.skills_dir).resolve()
-
-            # Find client directory (typically at project root)
-            project_root = workspace_path.parent.resolve()
-            client_path = project_root / "client"
 
             # Per Anthropic article: tools are filesystem-based Python modules
             # Write files directly to host workspace BEFORE sandbox creation
@@ -118,10 +138,8 @@ class SandboxExecutor(CodeExecutor):
                 skills_path=skills_path,
             )
             
-            # Ensure files are flushed to disk before sandbox creation
-            # This prevents timing issues with virtiofs mounts
-            import os
-            os.sync()  # Force filesystem sync
+            # Note: os.sync() removed for performance - modern filesystems don't need it
+            # Files are written synchronously and will be available via virtiofs
             
             # Verify files exist on host before creating sandbox
             client_file = workspace_path / "client" / "mcp_client.py"
@@ -170,14 +188,40 @@ class SandboxExecutor(CodeExecutor):
             # Generate minimal setup code to verify files exist and add /workspace to sys.path
             setup_code = self._generate_verification_code()
             
-            # Combine setup and execution in single run
-            # Files are already written to host workspace, so they're available via volume mount
+            # Write code to a file and execute it to avoid REPL mode breaking on errors
+            # This ensures the code executes as a complete script, not line-by-line
+            script_path = "/workspace/_execute_task.py"
             combined_code = setup_code + "\n\n# Execute task code\n" + code
             
-            logger.debug(f"Combined code length: {len(combined_code)} chars")
-            logger.debug("Executing combined code in sandbox...")
+            # Write code to file and execute it using exec() to avoid REPL mode issues
+            execute_code = f"""
+import os
+import sys
+
+# Setup code
+{setup_code}
+
+# Write task code to file
+task_code = {repr(code)}
+with open('{script_path}', 'w', encoding='utf-8') as f:
+    f.write(task_code)
+
+# Execute the script file using compile() and exec() to avoid REPL mode breaking
+try:
+    with open('{script_path}', 'r', encoding='utf-8') as f:
+        script_content = f.read()
+    compiled = compile(script_content, '{script_path}', 'exec')
+    exec(compiled, {{'__name__': '__main__', '__file__': '{script_path}'}})
+except Exception as e:
+    print(f"Script execution error: {{type(e).__name__}}: {{e}}", flush=True)
+    import traceback
+    traceback.print_exc()
+"""
             
-            exec_result = await asyncio.wait_for(sandbox.run(combined_code), timeout=45.0)
+            logger.debug(f"Execution code length: {len(execute_code)} chars")
+            logger.debug("Executing code via script file to avoid REPL mode issues...")
+            
+            exec_result = await asyncio.wait_for(sandbox.run(execute_code), timeout=45.0)
             output = await exec_result.output()
             error = None
             
@@ -512,40 +556,61 @@ class SandboxExecutor(CodeExecutor):
         execution issue in Python's interactive mode.
         
         Per Anthropic article: tools are filesystem-based Python modules.
+        
+        Performance optimization: Only writes files if they don't exist or content changed.
         """
+        import hashlib
+        
         workspace_path = workspace_path.resolve()
         logger.debug(f"Writing files to workspace: {workspace_path}")
+        
+        def _file_needs_update(source: Path, target: Path) -> bool:
+            """Check if file needs to be updated (doesn't exist or content changed)."""
+            if not target.exists():
+                return True
+            if not source.exists():
+                return False
+            # Compare file contents using hash for speed
+            try:
+                source_hash = hashlib.md5(source.read_bytes()).hexdigest()
+                target_hash = hashlib.md5(target.read_bytes()).hexdigest()
+                return source_hash != target_hash
+            except Exception:
+                # If we can't compare, assume it needs updating
+                return True
+        
+        def _write_if_needed(source: Path, target: Path, description: str = "") -> None:
+            """Write file only if it doesn't exist or content changed."""
+            if _file_needs_update(source, target):
+                content = source.read_text(encoding="utf-8")
+                target.write_text(content, encoding="utf-8")
+                logger.debug(f"Wrote {target} ({len(content)} chars){' - ' + description if description else ''}")
+            else:
+                logger.debug(f"Skipped {target} (unchanged)")
         
         # Create directory structure
         (workspace_path / "client").mkdir(parents=True, exist_ok=True)
         (workspace_path / "servers").mkdir(parents=True, exist_ok=True)
         (workspace_path / "skills").mkdir(parents=True, exist_ok=True)
         
-        logger.debug(f"Created directories in {workspace_path}")
-        
         # Write client files
         if client_path.exists():
-            # Write __init__.py
+            # Write __init__.py (always write, it's tiny)
             client_init_path = workspace_path / "client" / "__init__.py"
-            client_init_path.write_text(
-                '"""Client module for sandbox execution."""\n', encoding="utf-8"
-            )
-            logger.debug(f"Wrote {client_init_path}")
+            init_content = '"""Client module for sandbox execution."""\n'
+            if not client_init_path.exists() or client_init_path.read_text(encoding="utf-8") != init_content:
+                client_init_path.write_text(init_content, encoding="utf-8")
+                logger.debug(f"Wrote {client_init_path}")
             
             # Write mcp_client.py (prefer mock, fallback to real)
             mock_client_file = client_path / "mock_mcp_client.py"
             real_client_file = client_path / "mcp_client.py"
+            mcp_client_path = workspace_path / "client" / "mcp_client.py"
             
             if mock_client_file.exists():
-                content = mock_client_file.read_text(encoding="utf-8")
-                mcp_client_path = workspace_path / "client" / "mcp_client.py"
-                mcp_client_path.write_text(content, encoding="utf-8")
-                logger.debug(f"Wrote {mcp_client_path} ({len(content)} chars)")
+                _write_if_needed(mock_client_file, mcp_client_path, "mock client")
             elif real_client_file.exists():
-                content = real_client_file.read_text(encoding="utf-8")
-                mcp_client_path = workspace_path / "client" / "mcp_client.py"
-                mcp_client_path.write_text(content, encoding="utf-8")
-                logger.debug(f"Wrote {mcp_client_path} ({len(content)} chars)")
+                _write_if_needed(real_client_file, mcp_client_path, "real client")
             else:
                 logger.warning(f"Neither mock_mcp_client.py nor mcp_client.py found in {client_path}")
         else:
@@ -562,20 +627,20 @@ class SandboxExecutor(CodeExecutor):
                     # Copy tool files first (before __init__.py which imports them)
                     for tool_file in sorted(server_dir.glob("*.py")):
                         if tool_file.name != "__init__.py":
-                            content = tool_file.read_text(encoding="utf-8")
-                            (target_server_dir / tool_file.name).write_text(content, encoding="utf-8")
+                            target_file = target_server_dir / tool_file.name
+                            _write_if_needed(tool_file, target_file)
                     
                     # Copy __init__.py last (it imports from tool files)
                     init_file = server_dir / "__init__.py"
                     if init_file.exists():
-                        content = init_file.read_text(encoding="utf-8")
-                        (target_server_dir / "__init__.py").write_text(content, encoding="utf-8")
+                        target_init = target_server_dir / "__init__.py"
+                        _write_if_needed(init_file, target_init)
         
         # Write skill files
         if skills_path.exists():
             for skill_file in sorted(skills_path.glob("*.py")):
-                content = skill_file.read_text(encoding="utf-8")
-                (workspace_path / "skills" / skill_file.name).write_text(content, encoding="utf-8")
+                target_skill = workspace_path / "skills" / skill_file.name
+                _write_if_needed(skill_file, target_skill)
     
     def _generate_verification_code(self) -> str:
         """Generate minimal code to verify files exist and set up Python path.
