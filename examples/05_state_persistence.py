@@ -46,7 +46,12 @@ def session_1_write_state(config) -> tuple[bool, str]:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Write state to workspace
     task_description = """
@@ -105,7 +110,12 @@ def session_2_read_state(config) -> tuple[bool, str]:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Read state from workspace
     task_description = """

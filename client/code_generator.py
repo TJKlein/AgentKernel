@@ -5,21 +5,84 @@ by any example or agent to generate Python code that uses discovered tools.
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+# Try to import OpenAI
+try:
+    from openai import OpenAI
+    HAS_OPENAI = True
+except ImportError:
+    HAS_OPENAI = False
+    OpenAI = None  # type: ignore
+    logger.warning("openai package not available. LLM-based code generation will be disabled.")
 
 
 class CodeGenerator:
     """Generic code generator for tool usage."""
 
-    def __init__(self, include_error_handling: bool = True):
+    def __init__(
+        self,
+        include_error_handling: bool = True,
+        llm_config: Optional[Any] = None,  # LLMConfig from config.schema
+        tool_descriptions: Optional[Dict[tuple, str]] = None,
+    ):
         """Initialize code generator.
 
         Args:
             include_error_handling: Whether to wrap tool calls in try-except blocks
+            llm_config: Optional LLMConfig for LLM-based code generation
+            tool_descriptions: Optional dict mapping (server_name, tool_name) to descriptions
         """
         self.include_error_handling = include_error_handling
+        self.llm_config = llm_config
+        self.tool_descriptions = tool_descriptions or {}
+        self._llm_client = None
+        
+        # Initialize LLM client if enabled
+        if llm_config and llm_config.enabled and HAS_OPENAI:
+            self._init_llm_client()
+    
+    def _init_llm_client(self):
+        """Initialize OpenAI client based on config."""
+        if not self.llm_config or not HAS_OPENAI:
+            return
+        
+        try:
+            # Try Azure API key first, then fallback to OpenAI API key
+            api_key = (
+                self.llm_config.api_key or 
+                os.environ.get("AZURE_OPENAI_API_KEY") or 
+                os.environ.get("OPENAI_API_KEY")
+            )
+            if not api_key:
+                logger.warning("LLM enabled but no API key found. Falling back to rule-based generation.")
+                return
+            
+            if self.llm_config.provider == "azure_openai":
+                from openai import AzureOpenAI
+                if not self.llm_config.azure_endpoint:
+                    logger.warning("Azure OpenAI enabled but no endpoint configured.")
+                    return
+                if not self.llm_config.azure_deployment_name:
+                    logger.warning("Azure OpenAI enabled but no deployment name configured.")
+                    return
+                self._llm_client = AzureOpenAI(
+                    api_key=api_key,
+                    api_version=self.llm_config.azure_api_version,
+                    azure_endpoint=self.llm_config.azure_endpoint,
+                )
+                self._model_name = self.llm_config.azure_deployment_name
+            else:
+                self._llm_client = OpenAI(api_key=api_key)
+                self._model_name = self.llm_config.model
+            
+            logger.info(f"Initialized LLM client: {self.llm_config.provider} / {self._model_name}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize LLM client: {e}. Falling back to rule-based generation.")
+            self._llm_client = None
 
     def generate_imports(self, required_tools: Dict[str, List[str]]) -> List[str]:
         """Generate import statements for required tools.
@@ -181,6 +244,86 @@ except Exception as e:
 result = {tool_name}()
 print(f"{tool_name}() = {{result}}")"""
 
+    def _generate_code_with_llm(
+        self,
+        required_tools: Dict[str, List[str]],
+        task_description: str,
+        imports: List[str],
+    ) -> Optional[str]:
+        """Generate code using LLM.
+        
+        Args:
+            required_tools: Dict mapping server names to lists of tool names
+            task_description: Description of the task
+            imports: List of import statements
+            
+        Returns:
+            Generated code string or None if LLM generation fails
+        """
+        if not self._llm_client or not self.llm_config:
+            return None
+        
+        try:
+            # Build tool descriptions for prompt
+            tool_info = []
+            for server_name, tools in required_tools.items():
+                for tool_name in tools:
+                    key = (server_name, tool_name)
+                    desc = self.tool_descriptions.get(key, f"{server_name}.{tool_name}")
+                    tool_info.append(f"- {server_name}.{tool_name}: {desc}")
+            
+            tool_list = "\n".join(tool_info)
+            imports_str = "\n".join(imports) if imports else "# No imports needed"
+            
+            prompt = f"""You are a code generator that creates Python code to execute tasks using available tools.
+
+Task: {task_description}
+
+Available tools:
+{tool_list}
+
+Import statements (already generated):
+{imports_str}
+
+Generate Python code that:
+1. Uses the import statements above
+2. Calls the appropriate tools to complete the task
+3. Handles errors with try/except blocks
+4. Prints results clearly
+5. Follows Python best practices
+
+Only generate the usage code (not the imports). The code should be executable and complete the task.
+
+Generated code:"""
+
+            response = self._llm_client.chat.completions.create(
+                model=self._model_name,
+                messages=[
+                    {"role": "system", "content": "You are a helpful code generator that creates clean, executable Python code."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=self.llm_config.temperature,
+                max_tokens=self.llm_config.max_tokens,
+            )
+            
+            generated_code = response.choices[0].message.content.strip()
+            
+            # Remove markdown code blocks if present
+            if generated_code.startswith("```python"):
+                generated_code = generated_code[9:]
+            elif generated_code.startswith("```"):
+                generated_code = generated_code[3:]
+            if generated_code.endswith("```"):
+                generated_code = generated_code[:-3]
+            generated_code = generated_code.strip()
+            
+            logger.info("Generated code using LLM")
+            return generated_code
+            
+        except Exception as e:
+            logger.warning(f"LLM code generation failed: {e}. Falling back to rule-based generation.")
+            return None
+
     def generate_complete_code(
         self,
         required_tools: Dict[str, List[str]],
@@ -200,7 +343,18 @@ print(f"{tool_name}() = {{result}}")"""
             Complete Python code string
         """
         imports = self.generate_imports(required_tools)
-        usage = self.generate_usage_code(required_tools, task_description, task_specific_calls)
+        
+        # Try LLM generation if enabled
+        if self._llm_client and self.llm_config and self.llm_config.enabled:
+            llm_usage = self._generate_code_with_llm(required_tools, task_description, imports)
+            if llm_usage:
+                usage = [llm_usage]
+            else:
+                # Fallback to rule-based
+                usage = self.generate_usage_code(required_tools, task_description, task_specific_calls)
+        else:
+            # Use rule-based generation
+            usage = self.generate_usage_code(required_tools, task_description, task_specific_calls)
 
         default_header = """# Import tools from filesystem (written by sandbox executor)
 # https://www.anthropic.com/engineering/code-execution-with-mcp

@@ -39,7 +39,8 @@ def create_agent(config) -> AgentHelper:
         optimization_config=config.optimizations,
     )
 
-    return AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    return AgentHelper(fs_helper, executor, optimization_config=config.optimizations,
+        llm_config=config.llm)
 
 
 def session_1_initialize(config) -> tuple[bool, str]:

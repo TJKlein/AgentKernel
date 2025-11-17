@@ -7,9 +7,11 @@ from pathlib import Path
 from typing import Optional, Any
 
 try:
+    import aiohttp
     from microsandbox import PythonSandbox
 except ImportError:
     PythonSandbox = None  # type: ignore
+    aiohttp = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -71,20 +73,42 @@ class SandboxPool:
             logger.info(f"Sandbox pool ready with {self.available.qsize()} sandboxes")
     
     async def _create_sandbox(self, name: str) -> Any:
-        """Create a new sandbox."""
+        """Create a new sandbox and start it manually (not using context manager).
+        
+        This allows the sandbox to persist and be reused across multiple executions.
+        The sandbox will only be stopped during cleanup().
+        """
         if PythonSandbox is None:
             raise ImportError("microsandbox is not installed")
+        if aiohttp is None:
+            raise ImportError("aiohttp is not installed")
         
-        return await PythonSandbox.create(
-            name=f"code-execution-{name}-{uuid.uuid4().hex[:8]}",
-            volumes=[(str(self.workspace_dir), "/workspace")]
+        # Instantiate sandbox directly (not using create() context manager)
+        sandbox = PythonSandbox(
+            name=f"code-execution-{name}-{uuid.uuid4().hex[:8]}"
         )
+        
+        # Create HTTP session manually
+        sandbox._session = aiohttp.ClientSession()
+        
+        try:
+            # Start sandbox with volumes
+        await sandbox.start(volumes=[(str(self.workspace_dir), "/workspace")])
+            logger.debug(f"Created and started sandbox: {sandbox._name}")
+        return sandbox
+        except Exception as e:
+            # If start fails, close the session and re-raise
+            if sandbox._session:
+                await sandbox._session.close()
+                sandbox._session = None
+            logger.error(f"Failed to start sandbox {sandbox._name}: {e}")
+            raise
     
     async def acquire(self) -> Any:
         """Get sandbox from pool (or create new if empty).
         
         Returns:
-            Sandbox instance ready for execution
+            Sandbox instance ready for execution (already started)
         """
         if not self._initialized:
             await self.initialize()
@@ -92,6 +116,38 @@ class SandboxPool:
         # Try to get from pool (non-blocking)
         try:
             sandbox = self.available.get_nowait()
+            # Verify sandbox is still started and session is valid
+            if not sandbox._is_started:
+                logger.warning(f"Sandbox {sandbox._name} is not started, recreating...")
+                # Recreate this sandbox
+                try:
+                    if sandbox._session:
+                        await sandbox._session.close()
+                except Exception:
+                    pass
+                sandbox = await self._create_sandbox("replacement")
+            else:
+                # Check if session's event loop is closed (happens when asyncio.run() closes loop)
+                try:
+                    if sandbox._session and sandbox._session._loop and sandbox._session._loop.is_closed():
+                        logger.debug(f"Sandbox {sandbox._name} session loop closed, recreating session...")
+                        # Close old session
+                        try:
+                            await sandbox._session.close()
+                        except Exception:
+                            pass
+            # Create new session in current event loop
+                        sandbox._session = aiohttp.ClientSession()
+                except (AttributeError, RuntimeError):
+                    # Session might not have _loop attribute or loop check failed
+                    # Try to recreate session to be safe
+                    try:
+                        if sandbox._session:
+                            await sandbox._session.close()
+                    except Exception:
+                        pass
+                    sandbox._session = aiohttp.ClientSession()
+            
             self.in_use.add(sandbox)
             logger.debug(f"Acquired sandbox from pool (available={self.available.qsize()}, in_use={len(self.in_use)})")
             return sandbox
@@ -103,7 +159,7 @@ class SandboxPool:
             return sandbox
     
     async def release(self, sandbox: Any):
-        """Return sandbox to pool after cleaning.
+        """Return sandbox to pool (keep it running for reuse).
         
         Args:
             sandbox: Sandbox to return to pool
@@ -114,10 +170,21 @@ class SandboxPool:
         
         self.in_use.remove(sandbox)
         
+        # Verify sandbox is still started before returning to pool
+        if not sandbox._is_started:
+            logger.warning(f"Sandbox {sandbox._name} is not started, will not return to pool")
+            # Clean up the stopped sandbox
+            try:
+                if sandbox._session:
+                    await sandbox._session.close()
+            except Exception as e:
+                logger.warning(f"Error closing session for stopped sandbox: {e}")
+            return
+        
         # Optional: Clean sandbox state here (future optimization)
         # await self._clean_sandbox(sandbox)
         
-        # Return to pool
+        # Return to pool (sandbox stays running)
         await self.available.put(sandbox)
         logger.debug(f"Returned sandbox to pool (available={self.available.qsize()}, in_use={len(self.in_use)})")
     
@@ -129,31 +196,48 @@ class SandboxPool:
         pass
     
     async def cleanup(self):
-        """Cleanup all sandboxes in pool."""
+        """Cleanup all sandboxes in pool.
+        
+        Stops all sandboxes and closes their HTTP sessions.
+        """
         logger.info("Cleaning up sandbox pool...")
         
-        # Clean available sandboxes
         cleaned = 0
+        
+        # Clean available sandboxes
         while not self.available.empty():
             try:
                 sandbox = self.available.get_nowait()
                 try:
-                    await sandbox.stop()
+                    # Stop sandbox first
+                    if sandbox._is_started:
+                        await sandbox.stop()
+                    # Close HTTP session
+                    if sandbox._session:
+                        await sandbox._session.close()
+                        sandbox._session = None
                     cleaned += 1
                 except Exception as e:
-                    logger.warning(f"Failed to stop sandbox: {e}")
+                    logger.warning(f"Failed to cleanup sandbox {sandbox._name}: {e}")
             except asyncio.QueueEmpty:
                 break
         
         # Clean in-use sandboxes
         for sandbox in list(self.in_use):
             try:
-                await sandbox.stop()
+                # Stop sandbox first
+                if sandbox._is_started:
+                    await sandbox.stop()
+                # Close HTTP session
+                if sandbox._session:
+                    await sandbox._session.close()
+                    sandbox._session = None
                 cleaned += 1
             except Exception as e:
-                logger.warning(f"Failed to stop sandbox: {e}")
+                logger.warning(f"Failed to cleanup sandbox {sandbox._name}: {e}")
         
         self.in_use.clear()
+        self._initialized = False
         logger.info(f"Cleaned up {cleaned} sandboxes")
 
 

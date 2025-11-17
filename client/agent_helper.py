@@ -31,6 +31,7 @@ class AgentHelper:
         tool_selector: Optional[ToolSelector] = None,
         code_generator: Optional[CodeGenerator] = None,
         optimization_config: Optional[OptimizationConfig] = None,
+        llm_config: Optional[Any] = None,  # LLMConfig from config.schema
     ):
         """Initialize agent helper.
 
@@ -40,13 +41,21 @@ class AgentHelper:
             tool_selector: Optional ToolSelector (creates default if None)
             code_generator: Optional CodeGenerator (creates default if None)
             optimization_config: Optional OptimizationConfig (defaults to enabled)
+            llm_config: Optional LLMConfig for LLM-based code generation
         """
         self.fs_helper = fs_helper
         self.executor = executor
         self.tool_selector = tool_selector or ToolSelector()
-        self.code_generator = code_generator or CodeGenerator()
         self.optimization_config = optimization_config or OptimizationConfig()
+        self.llm_config = llm_config
         self._tool_cache = None
+        
+        # Initialize code generator with LLM config if not provided
+        if code_generator is None:
+            # Get tool descriptions if LLM is enabled (will be populated during discovery)
+            self.code_generator = CodeGenerator(llm_config=llm_config, tool_descriptions={})
+        else:
+            self.code_generator = code_generator
 
     def discover_tools(self, verbose: bool = True) -> Dict[str, List[str]]:
         """Discover all available tools from filesystem.
@@ -266,6 +275,12 @@ class AgentHelper:
             )
         elif verbose:
             print(f"\n1. Using provided tools: {required_tools}")
+
+        # Update code generator with tool descriptions if LLM is enabled
+        if self.llm_config and self.llm_config.enabled:
+            discovered_servers = required_tools if required_tools else self.discover_tools(verbose=False)
+            tool_descriptions = self._get_tool_descriptions_cached(discovered_servers)
+            self.code_generator.tool_descriptions = tool_descriptions
 
         # Generate and execute code
         if verbose:

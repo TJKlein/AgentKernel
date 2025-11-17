@@ -39,7 +39,12 @@ def main() -> None:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Chain multiple tools: calculate, then use result in weather query
     task_description = "Calculate 10 * 5, then get weather for that many cities starting with San Francisco"

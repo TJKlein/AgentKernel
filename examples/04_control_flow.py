@@ -39,7 +39,12 @@ def main() -> None:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Use control flow: check weather, then decide what to do
     task_description = "Get weather for San Francisco, and if temperature is above 20, calculate how many days until summer"

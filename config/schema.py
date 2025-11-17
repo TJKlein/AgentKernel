@@ -42,6 +42,21 @@ class GuardrailConfig(BaseModel):
     blocked_patterns: List[str] = Field(default_factory=list, description="Blocked code patterns")
 
 
+class LLMConfig(BaseModel):
+    """Configuration for LLM-based code generation."""
+
+    enabled: bool = Field(default=False, description="Enable LLM-based code generation")
+    provider: str = Field(default="openai", description="LLM provider: openai, azure_openai, anthropic")
+    model: str = Field(default="gpt-4o-mini", description="Model name to use")
+    api_key: Optional[str] = Field(default=None, description="API key (or use OPENAI_API_KEY env var)")
+    temperature: float = Field(default=0.3, description="Temperature for code generation")
+    max_tokens: int = Field(default=2000, description="Max tokens for code generation")
+    # Azure OpenAI specific
+    azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
+    azure_api_version: str = Field(default="2024-08-01-preview", description="Azure API version")
+    azure_deployment_name: Optional[str] = Field(default=None, description="Azure deployment name")
+
+
 class OptimizationConfig(BaseModel):
     """Configuration for performance optimizations."""
 
@@ -121,6 +136,9 @@ class AppConfig(BaseModel):
     )
     optimizations: OptimizationConfig = Field(
         default_factory=OptimizationConfig, description="Performance optimization configuration"
+    )
+    llm: LLMConfig = Field(
+        default_factory=LLMConfig, description="LLM configuration for code generation"
     )
     tool_mappings: List[ToolMappingConfig] = Field(
         default_factory=list, description="Tool mappings"

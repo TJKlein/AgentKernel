@@ -47,7 +47,12 @@ def double_number(x: float) -> float:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Use the saved skill
     task_description = "Import the double_number skill and use it to double 15"

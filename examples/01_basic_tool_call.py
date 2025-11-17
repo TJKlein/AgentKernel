@@ -57,7 +57,12 @@ def main() -> None:
     )
 
     # Initialize agent helper (combines discovery, selection, generation, execution)
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Define task - framework will auto-generate appropriate code
     task_description = "Calculate 5 + 3 and get weather for San Francisco"

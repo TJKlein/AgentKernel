@@ -5,7 +5,20 @@ import yaml
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+try:
+    from dotenv import load_dotenv
+    HAS_DOTENV = True
+except ImportError:
+    HAS_DOTENV = False
+    load_dotenv = None  # type: ignore
+
 from config.schema import AppConfig, MCPServerConfig, WorkflowConfig
+
+# Load .env file if available
+if HAS_DOTENV:
+    env_path = Path(".env")
+    if env_path.exists():
+        load_dotenv(env_path, override=False)  # Don't override existing env vars
 
 
 def load_config_from_file(config_path: str) -> Dict[str, Any]:
@@ -60,6 +73,32 @@ def load_config_from_env() -> Dict[str, Any]:
         "tool_cache": os.environ.get("OPTIMIZATION_TOOL_CACHE", "true").lower() == "true",
         "gpu_embeddings": os.environ.get("OPTIMIZATION_GPU_EMBEDDINGS", "true").lower() == "true",
         "parallel_discovery": os.environ.get("OPTIMIZATION_PARALLEL_DISCOVERY", "true").lower() == "true",
+    }
+
+    # Load LLM config
+    llm_enabled = os.environ.get("LLM_CODE_GENERATION", "false").lower() == "true"
+    
+    # Check for Azure OpenAI configuration
+    azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME") or os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME")
+    
+    # Auto-detect provider if Azure config is present
+    provider = os.environ.get("LLM_PROVIDER", "openai")
+    if azure_endpoint and not llm_enabled:
+        # Auto-enable if Azure config is present
+        llm_enabled = True
+        provider = "azure_openai"
+    
+    config["llm"] = {
+        "enabled": llm_enabled,
+        "provider": provider,
+        "model": os.environ.get("LLM_MODEL", "gpt-4o-mini"),
+        "api_key": os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY") or os.environ.get("LLM_API_KEY"),
+        "temperature": float(os.environ.get("LLM_TEMPERATURE", "0.3")),
+        "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", "2000")),
+        "azure_endpoint": azure_endpoint,
+        "azure_api_version": os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
+        "azure_deployment_name": azure_deployment,
     }
 
     # Load logging config

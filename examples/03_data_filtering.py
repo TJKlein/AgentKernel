@@ -39,7 +39,12 @@ def main() -> None:
         optimization_config=config.optimizations,
     )
 
-    agent = AgentHelper(fs_helper, executor, optimization_config=config.optimizations)
+    agent = AgentHelper(
+        fs_helper, 
+        executor, 
+        optimization_config=config.optimizations,
+        llm_config=config.llm  # Pass LLM config for LLM-based code generation
+    )
 
     # Filter and process data in code
     task_description = "Query database for users, filter for active users, and calculate statistics"
