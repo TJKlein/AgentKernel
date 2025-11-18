@@ -1,0 +1,15 @@
+include README.md
+include LICENSE
+include requirements.txt
+include requirements-dev.txt
+recursive-include config *.yaml *.yml
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .git*
+recursive-exclude * .venv
+recursive-exclude * venv
+recursive-exclude * *.log
+recursive-exclude examples *
+recursive-exclude workspace *
+recursive-exclude servers *
+recursive-exclude skills *

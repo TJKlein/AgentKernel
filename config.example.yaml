@@ -1,0 +1,74 @@
+# Code Execution MCP Configuration Template
+# Copy this file to config.yaml and customize for your needs
+
+execution:
+  workspace_dir: ./workspace
+  servers_dir: ./servers
+  skills_dir: ./skills
+  sandbox_type: microsandbox
+  sandbox_image: python
+  allow_network_access: false
+  state:
+    enabled: true  # Enable state persistence
+    workspace_dir: ./workspace  # Where to store state
+    state_file: state.json  # Default state file name
+    auto_save: true  # Automatically save state after execution
+    state_format: json  # Format: json, yaml, pickle
+
+# LLM Configuration (optional - for code generation)
+llm:
+  enabled: false  # Set to true to enable LLM-based code generation
+  provider: azure_openai  # Options: openai, azure_openai, anthropic
+  model: gpt-4o-mini
+  
+  # Azure OpenAI settings (if using Azure)
+  azure_endpoint: https://your-resource.openai.azure.com
+  azure_deployment_name: gpt-4o-mini
+  azure_api_version: 2024-08-01-preview
+  
+  # OpenAI settings (if using OpenAI)
+  # api_key: your_openai_api_key  # Or set OPENAI_API_KEY env var
+  
+  temperature: 0.3
+  max_tokens: 2000
+
+# Performance Optimizations
+optimizations:
+  enabled: true
+  sandbox_pooling: false  # Set to true for 100-700x performance boost (recommended)
+  sandbox_pool_size: 3
+  tool_cache: true
+  tool_cache_file: .tool_cache.json
+  gpu_embeddings: true
+  parallel_discovery: true
+  file_content_cache: true
+
+# Guardrails and Security
+guardrails:
+  enabled: true
+  strict_mode: false
+  content_filtering: true
+  security_checks: true
+  privacy_protection: true
+  pii_detection: true
+  tokenization: true
+  rate_limiting: true
+  max_execution_time: 300  # seconds
+  max_memory_mb: 512
+  allowed_networks: []
+  blocked_patterns: []
+
+# Logging
+logging:
+  level: INFO  # Options: DEBUG, INFO, WARNING, ERROR
+  file: logs/code-execution-mcp.log
+
+# MCP Servers (optional - for direct MCP server connections)
+mcp_servers: []
+  # Example:
+  # - name: my_server
+  #   url: http://localhost:8000
+  #   connection_type: sse  # Options: sse, stdio, http
+  #   enabled: true
+  #   timeout: 30
+

@@ -296,15 +296,24 @@ Only generate the usage code (not the imports). The code should be executable an
 
 Generated code:"""
 
-            response = self._llm_client.chat.completions.create(
-                model=self._model_name,
-                messages=[
+            # Use max_completion_tokens for newer models, max_tokens for older ones
+            completion_params = {
+                "model": self._model_name,
+                "messages": [
                     {"role": "system", "content": "You are a helpful code generator that creates clean, executable Python code."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=self.llm_config.temperature,
-                max_tokens=self.llm_config.max_tokens,
-            )
+                "temperature": self.llm_config.temperature,
+            }
+            
+            # Check if model supports max_completion_tokens (newer models)
+            # Use max_completion_tokens if available, otherwise fall back to max_tokens
+            if hasattr(self.llm_config, 'max_completion_tokens') and self.llm_config.max_completion_tokens:
+                completion_params["max_completion_tokens"] = self.llm_config.max_completion_tokens
+            else:
+                completion_params["max_tokens"] = self.llm_config.max_tokens
+            
+            response = self._llm_client.chat.completions.create(**completion_params)
             
             generated_code = response.choices[0].message.content.strip()
             

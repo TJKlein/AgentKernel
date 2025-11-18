@@ -1,7 +1,7 @@
 """Mock MCP client for testing and examples without real MCP servers."""
 
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from datetime import datetime, timedelta
 import random
 
@@ -254,3 +254,69 @@ def reset_mock_data() -> None:
     _mock_directories.clear()
     _mock_database_tables.clear()
     logger.info("Mock data reset")
+
+
+class MockMCPClient:
+    """Mock MCP client for testing and examples without real MCP servers.
+    
+    This class provides a simple interface similar to MCPClient but uses
+    mock implementations instead of connecting to real MCP servers.
+    """
+    
+    def __init__(self, server_name: Optional[str] = None):
+        """Initialize mock MCP client.
+        
+        Args:
+            server_name: Optional server name (for compatibility with MCPClient)
+        """
+        self.server_name = server_name
+        self._connected = False
+    
+    def connect(self) -> None:
+        """Connect to mock server (no-op for mock)."""
+        self._connected = True
+        logger.info("Mock MCP client connected")
+    
+    def disconnect(self) -> None:
+        """Disconnect from mock server (no-op for mock)."""
+        self._connected = False
+        logger.info("Mock MCP client disconnected")
+    
+    def call_tool(self, tool_name: str, parameters: Dict[str, Any]) -> Any:
+        """Call a mock tool.
+        
+        Args:
+            tool_name: Name of the tool to call (format: "server_name.tool_name")
+            parameters: Tool parameters
+        
+        Returns:
+            Tool result
+        """
+        if not self._connected:
+            self.connect()
+        
+        # Parse server_name.tool_name format
+        if "." in tool_name:
+            server_name, actual_tool_name = tool_name.split(".", 1)
+        else:
+            # Use default server if provided, otherwise use first available
+            server_name = self.server_name or list(_MOCK_HANDLERS.keys())[0]
+            actual_tool_name = tool_name
+        
+        return call_mcp_tool(server_name, actual_tool_name, parameters)
+    
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """List available mock tools.
+        
+        Returns:
+            List of tool descriptions
+        """
+        tools = []
+        for server_name, server_tools in _MOCK_HANDLERS.items():
+            for tool_name in server_tools.keys():
+                tools.append({
+                    "server": server_name,
+                    "tool": tool_name,
+                    "name": f"{server_name}.{tool_name}"
+                })
+        return tools

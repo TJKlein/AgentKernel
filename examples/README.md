@@ -4,6 +4,32 @@ This directory contains examples demonstrating different use cases of the code e
 
 ## Examples
 
+### 00_simple_api.py (Start Here!)
+**Simple API Usage - Recommended for New Users**
+- Demonstrates the new simplified framework API
+- Shows three ways to use the framework:
+  1. One-shot execution with `execute_task()`
+  2. Reusable agent with `create_agent()`
+  3. Custom configuration
+- **Best starting point** for learning the framework
+
+**Run:**
+```bash
+python examples/00_simple_api.py
+```
+
+**Code:**
+```python
+from code_execution_mcp import create_agent, execute_task
+
+# Simplest usage
+result, output, error = execute_task("Calculate 5 + 3")
+
+# Or create reusable agent
+agent = create_agent()
+result, output, error = agent.execute_task("Your task here")
+```
+
 ### 01_basic_tool_call.py
 **Basic Tool Call & Filesystem Discovery**
 - Simple single MCP tool execution
@@ -106,12 +132,205 @@ Each session runs in a separate sandbox execution but shares the same workspace.
 python examples/08_cross_session_persistence.py
 ```
 
+### 09_configuration.py
+
+**Programmatic Configuration**
+
+Demonstrates how to configure the framework programmatically without using `.env` files.
+
+**Key Features:**
+- Configure LLM settings (provider, model, API keys)
+- Configure statefulness (enabled/disabled, auto-save)
+- Combine multiple configuration options
+
+**Run:**
+```bash
+python examples/09_configuration.py
+```
+
+### 10_mcp_server.py
+
+**Running as MCP Server**
+
+Demonstrates how to run the framework as an MCP server, exposing its capabilities to other MCP clients.
+
+**Key Features:**
+- Start MCP server with default or custom configuration
+- Expose framework tools as MCP tools
+- Support for multiple transport types (stdio, sse, http)
+
+**Run:**
+```bash
+python examples/10_mcp_server.py
+```
+
+**Note:** To actually start the server, run:
+```bash
+python -m code_execution_mcp.server
+```
+
+### 11_mcp_server_client.py
+
+**MCP Server Client Usage**
+
+Demonstrates how to use the framework as an MCP server and connect to it from clients.
+
+**Key Features:**
+- Server setup and configuration
+- Exposed MCP tools documentation
+- Client connection examples
+- Transport types (stdio, sse, http)
+
+**Run:**
+```bash
+python examples/11_mcp_server_client.py
+```
+
+**See also:** [README.md](../README.md#running-as-an-mcp-server) for detailed documentation.
+
+### 14_mcp_statefulness.py
+
+**Statefulness with MCP Server**
+
+Demonstrates how to leverage statefulness when using the framework as an MCP server.
+
+**Key Features:**
+- Using `get_state` and `save_state` MCP tools
+- Multi-session workflows via MCP server
+- State persistence across server restarts
+- Combining state tools with `execute_task`
+- Cross-client state sharing
+- Multiple state file management
+
+**Run:**
+```bash
+# Terminal 1: Start server
+python -m code_execution_mcp.server
+
+# Terminal 2: Run example
+python examples/14_mcp_statefulness.py
+```
+
+**See also:**
+- `examples/05_state_persistence.py` - Direct framework state usage
+- `examples/08_cross_session_persistence.py` - Multi-session workflows
+- `README.md` (MCP Server Statefulness section) - Complete state management guide
+
+### 12_mcp_client_example.py
+
+**Running Examples in MCP Client Mode**
+
+Demonstrates how to run framework examples by connecting to the framework as an MCP server.
+
+**Key Features:**
+- Compare direct mode vs MCP client mode
+- Connect to MCP server from examples
+- Environment-based mode switching
+- Hybrid examples that work in both modes
+
+**Run:**
+```bash
+python examples/12_mcp_client_example.py
+```
+
+**To run examples in MCP mode:**
+```bash
+# Terminal 1: Start server
+python -m code_execution_mcp.server
+
+# Terminal 2: Run example
+export MCP_MODE=true
+python examples/00_simple_api.py
+```
+
+### 00_simple_api_mcp.py
+
+**Simple API Usage via MCP Server**
+
+MCP client version of `00_simple_api.py`. Demonstrates the same functionality but connects to the framework as an MCP server.
+
+**Key Features:**
+- Same API as direct mode
+- Connects via MCP protocol
+- Shows MCP client usage pattern
+
+**Run:**
+```bash
+# Terminal 1: Start server
+python -m code_execution_mcp.server
+
+# Terminal 2: Run example
+python examples/00_simple_api_mcp.py
+```
+
+## Running Examples in MCP Mode
+
+All examples can run in two modes:
+
+### Direct Mode (Default)
+
+Examples use the framework directly:
+```python
+from code_execution_mcp import execute_task
+result, output, error = execute_task("task")
+```
+
+### MCP Client Mode
+
+Examples connect to the framework as an MCP server:
+
+**1. Start the MCP server:**
+```bash
+python -m code_execution_mcp.server
+```
+
+**2. Run example with MCP mode:**
+```bash
+export MCP_MODE=true
+export MCP_SERVER_URL=stdio://code-execution-mcp-server
+python examples/00_simple_api.py
+```
+
+**3. Or use the helper:**
+```python
+from examples.mcp_client_helper import get_helper
+
+helper = get_helper()  # Auto-detects from MCP_MODE env var
+result, output, error = helper.execute_task("task")
+```
+
+See `examples/mcp_client_helper.py` for helper utilities and `examples/12_mcp_client_example.py` for detailed examples.
+
 ## Prerequisites
 
-All examples require:
-- Virtual environment activated (`.venv`)
-- Microsandbox server running (`msb server start --dev`)
-- Dependencies installed (`pip install -r requirements.txt`)
+**⚠️ Configuration Required:** All examples require proper setup before running.
+
+### Required Setup
+
+1. **Microsandbox server running**:
+   ```bash
+   curl -sSL https://get.microsandbox.dev | sh
+   msb server start --dev  # Keep running in separate terminal
+   ```
+
+2. **Directory structure**:
+   ```bash
+   mkdir -p servers workspace skills
+   ```
+
+3. **Dependencies installed**:
+   ```bash
+   pip install -r requirements.txt
+   # or
+   pip install -e .
+   ```
+
+### Optional Configuration
+
+- **LLM code generation**: Create `.env` file with Azure OpenAI or OpenAI credentials
+- **Sandbox pooling**: Add `OPTIMIZATION_SANDBOX_POOLING=true` to `.env` for better performance
+
+**📖 See the [Configuration](../README.md#configuration) section in the main README for detailed setup instructions.**
 
 ### Setup Verification
 
@@ -145,25 +364,46 @@ pip install -r requirements.txt
 
 ## Common Patterns
 
-All examples follow the same pattern:
+### Simple API (Recommended)
 
-1. **Initialize components:**
-   ```python
-   config = load_config()
-   fs_helper = FilesystemHelper(...)
-   executor = SandboxExecutor(...)
-   agent = AgentHelper(fs_helper, executor)
-   ```
+For most use cases, use the simplified API:
 
-2. **Define task:**
-   ```python
-   task_description = "Your task description here"
-   ```
+```python
+from code_execution_mcp import create_agent, execute_task
 
-3. **Execute:**
-   ```python
-   result, output, error = agent.execute_task(task_description, verbose=True)
-   ```
+# Option 1: One-shot execution
+result, output, error = execute_task("Your task here")
+
+# Option 2: Reusable agent (more efficient for multiple tasks)
+agent = create_agent()
+result, output, error = agent.execute_task("Your task here", verbose=True)
+```
+
+### Advanced API
+
+For more control, use the lower-level components:
+
+```python
+from code_execution_mcp import AgentHelper, FilesystemHelper, SandboxExecutor
+from code_execution_mcp import load_config
+
+# Initialize components
+config = load_config()
+fs_helper = FilesystemHelper(
+    workspace_dir=config.execution.workspace_dir,
+    servers_dir=config.execution.servers_dir,
+    skills_dir=config.execution.skills_dir,
+)
+executor = SandboxExecutor(
+    execution_config=config.execution,
+    guardrail_config=config.guardrails,
+    optimization_config=config.optimizations,
+)
+agent = AgentHelper(fs_helper, executor, ...)
+
+# Execute task
+result, output, error = agent.execute_task("Your task here", verbose=True)
+```
 
 The framework automatically:
 - Discovers available tools from `servers/` directory

@@ -93,9 +93,9 @@ class SandboxPool:
         
         try:
             # Start sandbox with volumes
-        await sandbox.start(volumes=[(str(self.workspace_dir), "/workspace")])
+            await sandbox.start(volumes=[(str(self.workspace_dir), "/workspace")])
             logger.debug(f"Created and started sandbox: {sandbox._name}")
-        return sandbox
+            return sandbox
         except Exception as e:
             # If start fails, close the session and re-raise
             if sandbox._session:
@@ -204,34 +204,44 @@ class SandboxPool:
         
         cleaned = 0
         
-        # Clean available sandboxes
+        # Collect all sandboxes first
+        all_sandboxes = []
+        
+        # Get available sandboxes
         while not self.available.empty():
             try:
                 sandbox = self.available.get_nowait()
-                try:
-                    # Stop sandbox first
-                    if sandbox._is_started:
-                        await sandbox.stop()
-                    # Close HTTP session
-                    if sandbox._session:
-                        await sandbox._session.close()
-                        sandbox._session = None
-                    cleaned += 1
-                except Exception as e:
-                    logger.warning(f"Failed to cleanup sandbox {sandbox._name}: {e}")
+                all_sandboxes.append(sandbox)
             except asyncio.QueueEmpty:
                 break
         
-        # Clean in-use sandboxes
-        for sandbox in list(self.in_use):
+        # Add in-use sandboxes
+        all_sandboxes.extend(list(self.in_use))
+        
+        # Clean all sandboxes
+        for sandbox in all_sandboxes:
             try:
-                # Stop sandbox first
-                if sandbox._is_started:
-                    await sandbox.stop()
-                # Close HTTP session
-                if sandbox._session:
-                    await sandbox._session.close()
+                # Close HTTP session first (before stopping sandbox)
+                if sandbox._session and not sandbox._session.closed:
+                    try:
+                        await sandbox._session.close()
+                    except Exception as e:
+                        logger.debug(f"Error closing session for {sandbox._name}: {e}")
+                        # Try to close connector directly
+                        try:
+                            if sandbox._session._connector:
+                                sandbox._session._connector.close()
+                        except Exception:
+                            pass
                     sandbox._session = None
+                
+                # Stop sandbox (if still started)
+                if sandbox._is_started:
+                    try:
+                        await sandbox.stop()
+                    except Exception as e:
+                        logger.debug(f"Error stopping sandbox {sandbox._name}: {e}")
+                
                 cleaned += 1
             except Exception as e:
                 logger.warning(f"Failed to cleanup sandbox {sandbox._name}: {e}")
@@ -244,6 +254,50 @@ class SandboxPool:
 # Global pool instance (singleton pattern)
 _global_pool: Optional[SandboxPool] = None
 _pool_lock = asyncio.Lock()
+
+
+def cleanup_global_pool_sync():
+    """Synchronous cleanup for use in atexit handlers.
+    
+    This handles the case where the event loop is already closed.
+    """
+    global _global_pool
+    if _global_pool is None:
+        return
+    
+    try:
+        import aiohttp
+        
+        # Collect all sandboxes
+        all_sandboxes = []
+        
+        # Get available sandboxes
+        while not _global_pool.available.empty():
+            try:
+                sandbox = _global_pool.available.get_nowait()
+                all_sandboxes.append(sandbox)
+            except Exception:
+                break
+        
+        # Add in-use sandboxes
+        all_sandboxes.extend(list(_global_pool.in_use))
+        
+        # Close sessions synchronously
+        for sandbox in all_sandboxes:
+            if hasattr(sandbox, '_session') and sandbox._session:
+                try:
+                    if not sandbox._session.closed:
+                        # Close connector directly (synchronous)
+                        if sandbox._session._connector:
+                            sandbox._session._connector.close()
+                        sandbox._session = None
+                except Exception:
+                    pass
+        
+        _global_pool.in_use.clear()
+        _global_pool._initialized = False
+    except Exception:
+        pass
 
 
 async def get_sandbox_pool(pool_size: int = 3, workspace_dir: str = "./workspace") -> SandboxPool:

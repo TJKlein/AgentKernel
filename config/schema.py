@@ -50,7 +50,8 @@ class LLMConfig(BaseModel):
     model: str = Field(default="gpt-4o-mini", description="Model name to use")
     api_key: Optional[str] = Field(default=None, description="API key (or use OPENAI_API_KEY env var)")
     temperature: float = Field(default=0.3, description="Temperature for code generation")
-    max_tokens: int = Field(default=2000, description="Max tokens for code generation")
+    max_tokens: int = Field(default=2000, description="Max tokens for code generation (legacy)")
+    max_completion_tokens: Optional[int] = Field(default=None, description="Max completion tokens (for newer models)")
     # Azure OpenAI specific
     azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
     azure_api_version: str = Field(default="2024-08-01-preview", description="Azure API version")
@@ -70,6 +71,24 @@ class OptimizationConfig(BaseModel):
     file_content_cache: bool = Field(default=True, description="Enable file content caching")
 
 
+class StateConfig(BaseModel):
+    """Configuration for state persistence."""
+
+    enabled: bool = Field(default=True, description="Enable state persistence")
+    workspace_dir: str = Field(
+        default="./workspace", description="Workspace directory for state storage"
+    )
+    state_file: str = Field(
+        default="state.json", description="Default state file name"
+    )
+    auto_save: bool = Field(
+        default=True, description="Automatically save state after each execution"
+    )
+    state_format: str = Field(
+        default="json", description="State file format: json, yaml, pickle"
+    )
+
+
 class ExecutionConfig(BaseModel):
     """Configuration for code execution."""
 
@@ -83,6 +102,9 @@ class ExecutionConfig(BaseModel):
     )
     mount_directories: List[str] = Field(
         default_factory=list, description="Directories to mount in sandbox"
+    )
+    state: StateConfig = Field(
+        default_factory=StateConfig, description="State persistence configuration"
     )
 
 

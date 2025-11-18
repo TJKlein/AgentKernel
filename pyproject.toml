@@ -53,7 +53,7 @@ Documentation = "https://github.com/your-org/code-execution-mcp/docs"
 Repository = "https://github.com/your-org/code-execution-mcp"
 
 [tool.setuptools]
-packages = ["client", "workflows", "config", "plugins"]
+packages = ["code_execution_mcp", "client", "config", "server"]
 
 [tool.black]
 line-length = 100
@@ -128,14 +128,13 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "--cov=client",
-    "--cov=workflows",
     "--cov=config",
     "--cov-report=term-missing",
     "--cov-report=html",
 ]
 
 [tool.coverage.run]
-source = ["client", "workflows", "config", "plugins"]
+source = ["client", "config"]
 omit = [
     "*/tests/*",
     "*/test_*.py",

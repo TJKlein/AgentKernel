@@ -19,12 +19,25 @@ class SecurityValidator:
             (r"eval\s*\(", "eval() usage"),
             (r"exec\s*\(", "exec() usage"),
             (r"__import__\s*\(", "__import__() usage"),
-            (r"open\s*\([^)]*['\"][rw]\+?['\"]", "File write access"),
         ]
 
         for pattern, description in dangerous_patterns:
             if re.search(pattern, code):
                 errors.append(f"Security risk: {description}")
+
+        # Check for file write access, but allow writes to /workspace
+        write_pattern = r"open\s*\([^)]*['\"][rw]\+?['\"]"
+        write_matches = re.finditer(write_pattern, code)
+        for match in write_matches:
+            # Check if the file path contains /workspace
+            match_start = match.start()
+            # Look for the file path argument (before the mode)
+            # Simple check: if '/workspace' appears nearby in the code, allow it
+            context_start = max(0, match_start - 100)
+            context_end = min(len(code), match_start + 50)
+            context = code[context_start:context_end]
+            if '/workspace' not in context:
+                errors.append("Security risk: File write access outside /workspace")
 
         return ValidationResult(valid=len(errors) == 0, errors=errors, warnings=warnings)
 

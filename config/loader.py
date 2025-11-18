@@ -64,6 +64,13 @@ def load_config_from_env() -> Dict[str, Any]:
         "servers_dir": os.environ.get("SERVERS_DIR", "./servers"),
         "skills_dir": os.environ.get("SKILLS_DIR", "./skills"),
         "allow_network_access": os.environ.get("ALLOW_NETWORK_ACCESS", "false").lower() == "true",
+        "state": {
+            "enabled": os.environ.get("STATE_ENABLED", "true").lower() == "true",
+            "workspace_dir": os.environ.get("STATE_WORKSPACE_DIR") or os.environ.get("WORKSPACE_DIR", "./workspace"),
+            "state_file": os.environ.get("STATE_FILE", "state.json"),
+            "auto_save": os.environ.get("STATE_AUTO_SAVE", "true").lower() == "true",
+            "state_format": os.environ.get("STATE_FORMAT", "json"),
+        },
     }
 
     # Load optimization config
