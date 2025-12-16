@@ -16,6 +16,7 @@ from typing import Optional, Tuple, Any
 from client import (
     # Orchestration
     AgentHelper,
+    TaskManager,  # Async middleware
     # Execution
     SandboxExecutor,
     SandboxPool,
@@ -72,6 +73,7 @@ __all__ = [
     # Components (organized by architectural layer)
     # Orchestration
     "AgentHelper",
+    "TaskManager",  # Async middleware
     # Execution
     "SandboxExecutor",
     "SandboxPool",

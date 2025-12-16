@@ -164,8 +164,8 @@ class SandboxExecutor(CodeExecutor):
                 return await self._execute_with_pool(workspace_path_abs, code)
             else:
                 # Original slow path for debugging
-                import uuid
-                sandbox_name = f"code-execution-{uuid.uuid4().hex[:8]}"
+                # Use fixed sandbox name to match Sandboxfile configuration
+                sandbox_name = "code-execution"
                 
                 async with PythonSandbox.create(
                     name=sandbox_name,

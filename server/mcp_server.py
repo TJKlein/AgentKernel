@@ -16,6 +16,7 @@ except ImportError:
 from client.agent_helper import AgentHelper
 from client.filesystem_helpers import FilesystemHelper
 from client.sandbox_executor import SandboxExecutor
+from client.task_manager import TaskManager
 from config.loader import load_config
 from config.schema import AppConfig
 
@@ -43,9 +44,10 @@ class MCPServer:
 
         self.config = config or load_config()
         self.agent = agent or self._create_agent()
-        self.mcp = FastMCP("Code Execution MCP")
+        self.task_manager = TaskManager(self.agent)  # Initialize async middleware
+        self.mcp = FastMCP("AgentKernel")  # Updated branding
         self._setup_tools()
-        
+
         # Register custom tools if provided
         if custom_tools:
             self.register_tools(custom_tools)
@@ -214,76 +216,222 @@ class MCPServer:
             detail_level: str = "name",
             max_results: int = 10,
         ) -> Dict[str, Any]:
-            """Search for relevant tools using semantic search.
+            """Search for relevant tools using progressive disclosure.
 
-            This tool allows agents to find relevant tool definitions without loading
-            all tool descriptions upfront, enabling progressive disclosure.
+            This tool enables progressive disclosure by only loading what's needed:
+            - "name": Fast keyword search on tool names only (no file loading)
+            - "description": Semantic search on metadata only (no full code loading)
+            - "full": Loads only matching tool definitions (lazy loading)
 
             Args:
                 query: Search query describing what tools are needed
                 detail_level: Level of detail to return
-                    - "name": Tool names only (most efficient)
-                    - "description": Tool names and descriptions
-                    - "full": Full tool definitions with schemas
+                    - "name": Tool names only (most efficient, no file loading)
+                    - "description": Tool names and descriptions (metadata only)
+                    - "full": Full tool definitions with schemas (loads only matches)
                 max_results: Maximum number of results to return
 
             Returns:
                 Dictionary with search results based on detail_level
             """
             try:
-                # Discover all tools
-                discovered_servers = self.agent.discover_tools(verbose=False)
-                
-                # Get tool descriptions
-                tool_descriptions = self.agent._get_tool_descriptions(discovered_servers)
-                
-                # Use semantic search to find relevant tools
-                selected_tools = self.agent.tool_selector.select_tools(
-                    query,
-                    tool_descriptions,
-                    use_gpu=self.config.optimizations.gpu_embeddings if self.config.optimizations.enabled else False,
-                )
-                
-                # Format results based on detail_level
+                from code_execution_mcp.client.tool_metadata import ToolMetadataIndex
+
+                metadata_index = ToolMetadataIndex(self.agent.fs_helper.servers_dir)
+
                 if detail_level == "name":
-                    # Return just tool names grouped by server
-                    return selected_tools
-                
+                    # PROGRESSIVE DISCLOSURE: Fast keyword search, no file loading
+                    # Only searches tool names, doesn't load any files
+                    return metadata_index.search_tool_names(query, max_results=max_results)
+
                 elif detail_level == "description":
-                    # Return tool names with descriptions
+                    # PROGRESSIVE DISCLOSURE: Semantic search on metadata only
+                    # Extracts descriptions from files but doesn't load full code
+                    # First, get all metadata (still efficient - only reads docstrings)
+                    all_metadata = metadata_index.get_all_tool_metadata()
+
+                    # Convert to format expected by tool_selector
+                    tool_descriptions = {
+                        key: f"{meta['server']} {meta['name']}: {meta['description']}"
+                        for key, meta in all_metadata.items()
+                    }
+
+                    # Use semantic search to find relevant tools
+                    selected_tools = self.agent.tool_selector.select_tools(
+                        query,
+                        tool_descriptions,
+                        use_gpu=(
+                            self.config.optimizations.gpu_embeddings
+                            if self.config.optimizations.enabled
+                            else False
+                        ),
+                    )
+
+                    # Return tool names with descriptions (from metadata, not full code)
                     result = {}
                     for server_name, tool_names in selected_tools.items():
                         result[server_name] = {}
                         for tool_name in tool_names[:max_results]:
-                            key = (server_name, tool_name)
-                            if key in tool_descriptions:
+                            metadata = metadata_index.get_tool_metadata(server_name, tool_name)
+                            if metadata:
                                 result[server_name][tool_name] = {
-                                    "description": tool_descriptions[key],
+                                    "description": metadata.get("description", ""),
                                 }
                     return result
-                
+
                 elif detail_level == "full":
-                    # Return full tool definitions
+                    # PROGRESSIVE DISCLOSURE: Load only matching tools
+                    # First, do semantic search on metadata (doesn't load full code)
+                    all_metadata = metadata_index.get_all_tool_metadata()
+
+                    tool_descriptions = {
+                        key: f"{meta['server']} {meta['name']}: {meta['description']}"
+                        for key, meta in all_metadata.items()
+                    }
+
+                    # Use semantic search to find relevant tools
+                    selected_tools = self.agent.tool_selector.select_tools(
+                        query,
+                        tool_descriptions,
+                        use_gpu=(
+                            self.config.optimizations.gpu_embeddings
+                            if self.config.optimizations.enabled
+                            else False
+                        ),
+                    )
+
+                    # NOW load only the matching tool files (lazy loading)
                     result = {}
                     for server_name, tool_names in selected_tools.items():
                         result[server_name] = {}
                         for tool_name in tool_names[:max_results]:
                             tool_code = self.agent.fs_helper.read_tool_file(server_name, tool_name)
                             if tool_code:
+                                metadata = metadata_index.get_tool_metadata(server_name, tool_name)
                                 result[server_name][tool_name] = {
                                     "code": tool_code,
-                                    "description": tool_descriptions.get((server_name, tool_name), ""),
+                                    "description": (
+                                        metadata.get("description", "") if metadata else ""
+                                    ),
                                 }
                     return result
-                
+
                 else:
                     return {
                         "error": f"Invalid detail_level: {detail_level}. Must be 'name', 'description', or 'full'"
                     }
-                    
+
             except Exception as e:
                 logger.error(f"Error searching tools: {e}", exc_info=True)
                 return {"error": str(e)}
+
+        # ===== ASYNC MIDDLEWARE TOOLS =====
+        
+        @self.mcp.tool()
+        def dispatch_background_task(
+            task_description: str,
+            verbose: bool = False,
+        ) -> Dict[str, str]:
+            """Dispatch a task to run in the background (async execution).
+            
+            This tool enables "fire-and-forget" async execution. The task runs
+            in a background thread while the main agent continues working.
+            
+            Args:
+                task_description: Description of the task to execute
+                verbose: Whether to print execution progress
+                
+            Returns:
+                Dictionary with task_id for tracking
+            """
+            try:
+                task_id = self.task_manager.dispatch_task(
+                    task_description=task_description,
+                    verbose=verbose,
+                )
+                return {
+                    "task_id": task_id,
+                    "status": "dispatched",
+                    "description": task_description,
+                }
+            except Exception as e:
+                logger.error(f"Error dispatching task: {e}", exc_info=True)
+                return {
+                    "error": str(e),
+                    "status": "failed",
+                }
+        
+        @self.mcp.tool()
+        def get_background_task_status(task_id: str) -> Dict[str, Any]:
+            """Get the current status of a background task.
+            
+            Args:
+                task_id: Unique task identifier from dispatch_background_task
+                
+            Returns:
+                Dictionary containing task status, result, output, and errors
+            """
+            try:
+                return self.task_manager.get_task_status(task_id)
+            except Exception as e:
+                logger.error(f"Error getting task status: {e}", exc_info=True)
+                return {"error": str(e), "status": "unknown"}
+        
+        @self.mcp.tool()
+        def wait_for_background_task(
+            task_id: str,
+            timeout: float = 300.0,
+        ) -> Dict[str, Any]:
+            """Wait for a background task to complete and return results.
+            
+            This blocks until the task completes or timeout is reached.
+            
+            Args:
+                task_id: Unique task identifier from dispatch_background_task
+                timeout: Maximum time to wait in seconds (default: 300)
+                
+            Returns:
+                Dictionary containing task status, result, output, and errors
+            """
+            try:
+                return self.task_manager.wait_for_task(task_id, timeout=timeout)
+            except Exception as e:
+                logger.error(f"Error waiting for task: {e}", exc_info=True)
+                return {"error": str(e), "status": "unknown"}
+        
+        @self.mcp.tool()
+        def list_background_tasks() -> Dict[str, Dict[str, Any]]:
+            """List all background tasks and their current status.
+            
+            Returns:
+                Dictionary mapping task_ids to their status information
+            """
+            try:
+                return self.task_manager.list_tasks()
+            except Exception as e:
+                logger.error(f"Error listing tasks: {e}", exc_info=True)
+                return {"error": str(e)}
+        
+        @self.mcp.tool()
+        def cancel_background_task(task_id: str) -> Dict[str, Any]:
+            """Attempt to cancel a running background task.
+            
+            Args:
+                task_id: Unique task identifier from dispatch_background_task
+                
+            Returns:
+                Dictionary with cancellation result
+            """
+            try:
+                cancelled = self.task_manager.cancel_task(task_id)
+                return {
+                    "task_id": task_id,
+                    "cancelled": cancelled,
+                    "status": "cancelled" if cancelled else "could_not_cancel",
+                }
+            except Exception as e:
+                logger.error(f"Error cancelling task: {e}", exc_info=True)
+                return {"error": str(e), "cancelled": False}
 
     def register_tool(self, tool_func: Callable, name: Optional[str] = None) -> None:
         """Register a custom tool programmatically.
@@ -323,6 +471,26 @@ class MCPServer:
         for tool in tools:
             self.register_tool(tool)
         logger.info(f"Registered {len(tools)} custom tools")
+
+    def http_app(self, path: str = "/"):
+        """Get FastAPI app for HTTP transport (for mounting in FastAPI applications).
+
+        Args:
+            path: Path prefix for the MCP server
+
+        Returns:
+            FastAPI application instance
+
+        Example:
+            from fastapi import FastAPI
+            from code_execution_mcp import create_server
+
+            app = FastAPI()
+            mcp_server = create_server()
+            mcp_app = mcp_server.http_app(path="/mcp")
+            app.mount("/mcp", mcp_app)
+        """
+        return self.mcp.http_app(path=path)
 
     async def run(self, transport: str = "stdio") -> None:
         """Run the MCP server.
@@ -386,4 +554,3 @@ if __name__ == "__main__":
 
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
     run_server(transport=transport)
-

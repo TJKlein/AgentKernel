@@ -13,6 +13,7 @@ Architecture:
 
 # Orchestration Layer
 from client.agent_helper import AgentHelper
+from client.task_manager import TaskManager # Async middleware
 
 # Execution Layer
 from client.sandbox_executor import SandboxExecutor
@@ -49,6 +50,7 @@ from client.errors import (
 __all__ = [
     # Orchestration
     "AgentHelper",
+    "TaskManager",  # Async middleware
     # Execution
     "SandboxExecutor",
     "SandboxPool",
@@ -78,3 +80,4 @@ __all__ = [
     "SandboxExecutionError",
     "WorkflowExecutionError",
 ]
+
