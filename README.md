@@ -1,124 +1,105 @@
 # AgentKernel
 
+[Getting Started](#getting-started) | [Configuration](#configuration) | [CLI Reference](#cli-reference) | [API Documentation](DOCS.md) | [Roadmap](#roadmap)
+
 **The High-Performance Local Runtime for Autonomous Agents**
 
-Build production-grade AI agents with 100x faster execution, zero cloud costs, and enterprise-grade isolation. AgentKernel implements [Anthropic's Programmatic Tool Calling (PTC)](https://www.anthropic.com/engineering/code-execution-with-mcp) pattern with MCP integration, enabling agents to execute tasks through generated Python code instead of individual tool calls.
-
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+Demo: Processing 1M+ rows of financial data with 100x faster execution and zero cloud costs
 
 ---
 
-## �� Why AgentKernel?
+## What is Programmatic Tool Calling?
 
-| Feature | AgentKernel (Local) | Cloud Solutions (Daytona, RunPod) |
-|---------|---------------------|-----------------------------------|
-| **Speed** | <100ms sandbox pool | 2-5s API round-trip |
-| **Cost** | $0 (self-hosted) | $0.10-0.50 per hour |
-| **Privacy** | 100% local | Cloud processing |
-| **Network** | Optional | Required |
-| **Customization** | Full control | Limited |
+AgentKernel is an open source implementation of Anthropic's [Programmatic Tool Calling (PTC)](https://www.anthropic.com/engineering/code-execution-with-mcp), which enables agents to invoke tools with code execution rather than making individual JSON tool calls. This paradigm is featured in their engineering blog [Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp).
 
-**Key Benefits:**
-- 🚀 **10-100x Faster**: Local sandbox pooling eliminates cloud latency
-- 💰 **Zero Cost**: Self-hosted with no API fees
-- 🔒 **Enterprise Security**: Process-level isolation, no data leaves your infrastructure
-- 🎯 **Token Efficiency**: 85-98% reduction by processing data locally
-- ⚡ **Async Middleware**: Background task execution with "fire-and-forget" pattern
-- 🔧 **Production-Ready**: Guardrails, state management, extensive optimization
+## Why PTC?
 
----
+1. **LLMs excel at writing code!** They understand context, reason about data flows, and generate precise logic. PTC lets them orchestrate entire workflows rather than reasoning through one tool call at a time.
 
-## ✨ What's New: Async Middleware
+2. **Token efficiency through local processing.** Traditional tool calling returns full results to the model's context. Fetching 1 year of stock prices for 10 tickers means 2,500+ OHLCV data points - tens of thousands of tokens. With PTC, code runs in a sandbox, processes data locally, and only the final output returns. Result: **85-98% token reduction**.
 
-AgentKernel now includes async middleware for background task execution, matching the capabilities of tools like `open-ptc-agent`:
+3. **Optimized for data-intensive tasks.** PTC shines when working with large volumes of structured data, time series analysis, and scenarios requiring filtering, aggregating, or transforming results before returning them to the model.
 
-```python
-from code_execution_mcp import create_agent, TaskManager
+## How It Works
 
-agent = create_agent()
-manager = TaskManager(agent)
-
-# Dispatch tasks to background workers
-task1 = manager.dispatch_task("Analyze 1M row CSV")
-task2 = manager.dispatch_task("Scrape 50 websites")
-task3 = manager.dispatch_task("Calculate fibonacci(40)")
-
-# Continue working while tasks run...
-
-# Collect results when ready
-results = [manager.wait_for_task(tid) for tid in [task1, task2, task3]]
+```
+User Task
+    |
+    v
++-------------------+
+|   AgentKernel     |
+| Tool discovery -> Writes Python code
++-------------------+
+    |              ^
+    v              |
++-------------------+
+| Microsandbox      |
+| Executes code     |
+|  +-----------+    |
+|  | MCP Tools |    |
+|  | tool() -> process/filter/aggregate -> output
+|  | (Python)  |    |
+|  +-----------+    |
++-------------------+
+    |
+    v
++-------------------+
+|Final deliverables |
+| Results returned  |
+| to agent          |
++-------------------+
 ```
 
-**5 New MCP Tools** for async execution:
-- `dispatch_background_task()` - Start async execution
-- `get_background_task_status()` - Check progress
-- `wait_for_background_task()` - Block until complete
-- `list_background_tasks()` - View all tasks
-- `cancel_background_task()` - Cancel running task
+Built on **Microsandbox** for secure local execution with enterprise-grade isolation.
+
+## What's New
+
+- **Async Middleware** - Background task execution with "fire and collect" pattern
+- **Task Monitoring** - `wait_for_task()` and `get_task_status()` tools for async workflows
+- **Sandbox Pooling** - <100ms startup with pre-warmed sandbox pool
+- **Volume Mounting** - Persistent workspace for tool libraries and state
+- **Zero Cloud Costs** - 100% local execution, no API fees
+
+## Why AgentKernel?
+
+| Feature | AgentKernel | Cloud Solutions |
+|---------|-------------|-----------------|
+| **Speed** | <100ms startup | 2-5s API latency |
+| **Cost** | $0 (self-hosted) | $0.10-0.50/hour |
+| **Privacy** | 100% local | Cloud processing |
+| **Token Usage** | 50-500 tokens | 5,000-50,000 tokens |
+| **Network** | Optional | Required |
 
 ---
 
-## 🚀 Quick Start
+## Getting Started
 
-### 1. Install Microsandbox (Required)
+### Prerequisites
 
-**⚠️ Important**: AgentKernel requires microsandbox with **volume mounting support**. The standard installation doesn't include this feature.
+- Python 3.10+
+- Docker
+- Rust (for building Microsandbox)
 
-#### Option A: Build from Source (Recommended)
+### Installation
 
 ```bash
-# Clone microsandbox repository (ensure it has volume support)
+# Clone Microsandbox with volume support
 git clone https://github.com/TJKlein/microsandbox.git
 cd microsandbox
-
-# Build the server
 cargo build --release
 
-# Start server (keep running in a separate terminal)
-./target/release/msbserver --dev
-```
-
-#### Option B: Standard Installation (Limited)
-
-```bash
-# Standard installation (does NOT support volumes)
-curl -sSL https://get.microsandbox.dev | sh
-
-# ⚠️ This will NOT work with AgentKernel!
-# You must build from source instead.
-```
-
-### 2. Install AgentKernel
-
-```bash
-pip install code-execution-mcp  # (When published)
-# Or from source:
-git clone https://github.com/your-org/code-execution-mcp.git
-cd code-execution-mcp
+# Clone AgentKernel
+cd ..
+git clone https://github.com/your-org/agentkernel.git
+cd agentkernel
 pip install -e .
 ```
 
-### 3. Create Your First Agent
+> **Why build from source?** AgentKernel requires microsandbox with volume mounting support, which is NOT included in the standard  installation. See [Why Build Microsandbox from Source?](DOCS.md#why-build-microsandbox-from-source) for details.
 
-```python
-from code_execution_mcp import create_agent, execute_task
+### Minimal Configuration
 
-# Simple one-liner
-result, output, error = execute_task("Calculate fibonacci(30)")
-
-# Or create reusable agent
-agent = create_agent()
-result, output, error = agent.execute_task("Get weather for Paris")
-```
-
-### 4. Configure Microsandbox (Important!)
-
-AgentKernel requires proper microsandbox configuration to work correctly. Follow these steps:
-
-#### A. Create Sandboxfile
-
-Create `/Users/YOUR_USERNAME/.microsandbox/namespaces/default/Sandboxfile`:
+Create a Sandboxfile at `~/.microsandbox/namespaces/default/Sandboxfile`:
 
 ```yaml
 sandboxes:
@@ -127,309 +108,238 @@ sandboxes:
     memory: 512
     cpus: 1
     volumes:
-    - /path/to/code-execution-mcp/workspace:/workspace
+    - /absolute/path/to/agentkernel/workspace:/workspace
     ports:
     - 64943:4444
 ```
 
-**Important**: Replace `/path/to/code-execution-mcp/workspace` with your actual workspace path!
-
-#### B. Pre-pull Docker Image
+Pre-pull Docker image:
 
 ```bash
 docker pull microsandbox/python
 ```
 
-#### C. Start Microsandbox Server
+### Verify Setup
 
-**⚠️ IMPORTANT**: You must use the **rebuilt binary** from your local microsandbox repository, not the globally installed `msb` command!
+**Important**: Run this verification script to ensure everything is configured correctly:
 
-The global `msb` (installed via `curl -sSL https://get.microsandbox.dev | sh`) does **NOT** include volume mounting support and will cause errors like:
+```bash
+python verify_setup.py
 ```
-"Invalid params for sandbox.start: invalid type: map, expected a string"
-```
 
-**Correct way** (use the rebuilt binary):
+This will check:
+- ✓ Docker is running
+- ✓ No global `msb` interfering (wrong binary)
+- ✓ Microsandbox server running with correct binary
+- ✓ Sandboxfile configured
+- ✓ **Volume mounting actually works**
+
+If all checks pass, you're ready to use AgentKernel!
+
+---
+
+Start Microsandbox server:
+
 ```bash
 cd /path/to/microsandbox
 ./target/release/msbserver --dev
 ```
 
-**Wrong way** (will fail):
-```bash
-msb server start --dev  # ❌ This uses the old global binary without volume support
-```
-
-**Why?** The global installation doesn't include the volume mounting patches. You need to:
-1. Clone the microsandbox repo with volume support
-2. Build it locally: `cargo build --release`
-3. Use the binary from `target/release/msbserver`
-
-**About the `--dev` flag:**
-- `--dev`: Development mode - disables authentication, allows local connections
-- Without `--dev`: Production mode - requires API key authentication
-- **For local development**: Always use `--dev`
-- **For production**: Omit `--dev` and set up proper authentication
-
-### 5. Run Tests
-
-```bash
-cd code-execution-mcp
-python test_async_middleware.py
-```
-
-Expected output:
-```
-✅ All critical tests passed!
-Async middleware is working correctly!
-```
-
----
-
-## 🔧 Troubleshooting
-
-### Issue: "Invalid params for sandbox.start: invalid type: map, expected a string"
-
-**Cause**: Microsandbox server doesn't support volume mounting (old version).
-
-**Solution**:
-1. Ensure you have the latest microsandbox with volume support
-2. Rebuild the server: `cd microsandbox && cargo build --release`
-3. Restart with the rebuilt binary: `./target/release/msbserver --dev`
-
-### Issue: "cannot find sandbox: 'code-execution-xxx' in Sandboxfile"
-
-**Cause**: Sandboxfile missing or incorrect configuration.
-
-**Solution**:
-1. Verify Sandboxfile exists at `~/.microsandbox/namespaces/default/Sandboxfile`
-2. Ensure it has a `code-execution` sandbox defined with volumes
-3. Restart microsandbox server after updating Sandboxfile
-
-### Issue: Tests timeout after 30 seconds
-
-**Cause**: First-time Docker image pull or slow VM initialization.
-
-**Solution**:
-1. Pre-pull the image: `docker pull microsandbox/python`
-2. Wait for first sandbox to warm up (subsequent runs will be faster)
-3. This is normal microsandbox behavior, not an AgentKernel issue
-
-### Issue: "Address already in use (os error 48)"
-
-**Cause**: Microsandbox server already running on port 5555.
-
-**Solution**:
-```bash
-# Find and kill existing server
-ps aux | grep msbserver
-kill <PID>
-
-# Or use pkill
-pkill -f msbserver
-```
-
----
-
-## 📖 Core Concepts
-
-### Programmatic Tool Calling (PTC)
-
-Traditional agents make individual JSON tool calls. AgentKernel generates **Python code** that orchestrates multiple tools:
-
-**Traditional Approach:**
-```json
-{"tool": "get_stock", "args": {"ticker": "AAPL"}}
-→ Returns 2,500 OHLCV data points (10,000+ tokens)
-{"tool": "calculate_mean", "args": {"data": [...]}}
-```
-
-**AgentKernel (PTC) Approach:**
-```python
-from tools.finance import get_stock_history
-import pandas as pd
-
-data = get_stock_history("AAPL", period="1y")  # Stays in sandbox
-df = pd.DataFrame(data)
-summary = {"mean": df["close"].mean(), "std": df["close"].std()}
-print(summary)  # Only summary returns to LLM (50 tokens)
-```
-
-**Result**: 85-98% token reduction, faster execution, lower costs.
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────┐
-│   AgentHelper (Orchestration)      │
-│   - Task execution                  │
-│   - Tool discovery                  │
-│   - Async middleware (NEW)          │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   Progressive Tool Discovery        │
-│   - Semantic search                 │
-│   - Lazy loading                    │
-│   - Caching                         │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   Code Generation                   │
-│   - Template-based (default)        │
-│   - LLM-based (optional)            │
-└─────────────────────────────────────┘
-              ↓
-┌─────────────────────────────────────┐
-│   Microsandbox Execution            │
-│   - Sandbox pooling                 │
-│   - Volume mounting                 │
-│   - Process isolation               │
-└─────────────────────────────────────┘
-```
-
----
-
-## 🔧 Advanced Features
-
-### LLM-Based Code Generation
+Use AgentKernel:
 
 ```python
-agent = create_agent(
-    llm_enabled=True,
-    llm_provider="azure_openai",  # or "openai"
-    llm_azure_endpoint="https://your-resource.openai.azure.com",
-    llm_api_key="your_key"
-)
-```
+from code_execution_mcp import create_agent
 
-### State Persistence
-
-```python
-agent = create_agent(
-    state_enabled=True,
-    state_file="workflow_state.json",
-    state_auto_save=True
-)
-```
-
-### Run as MCP Server
-
-```bash
-# Start MCP server
-python -m code_execution_mcp.server stdio
-
-# Or programmatically
-from code_execution_mcp import run_server
-run_server(transport="stdio")
-```
-
-**12 MCP Tools Exposed:**
-- `execute_task` - Execute tasks
-- `list_available_tools` - Discover tools
-- `search_tools` - Progressive disclosure
-- `get_state` / `save_state` - State management  
-- `dispatch_background_task` - Async execution (NEW)
-- `wait_for_background_task` - Collect results (NEW)
-- And more...
-
----
-
-## 📊 Performance Optimizations
-
-AgentKernel includes production-grade optimizations:
-
-- **Sandbox Pooling**: Pre-warmed sandboxes for <100ms execution
-- **Tool Caching**: Avoid redundant file reads
-- **Parallel Discovery**: Concurrent tool discovery
-- **GPU Embeddings**: Hardware-accelerated semantic search
-
-```python
 agent = create_agent()
-# Sandbox pooling enabled by default
-# First call: ~500ms (cold start)
-# Subsequent calls: <100ms (pooled)
+result, output, error = agent.execute_task("Calculate fibonacci(30)")
+print(output)
 ```
 
----
+### With Async Middleware
 
-## 🎯 Use Cases
-
-### Data Processing Agents
-Process large datasets locally without sending data to cloud LLMs:
 ```python
-task = "Analyze sales_data.csv (10M rows) and generate monthly revenue report"
-result = execute_task(task)
+from code_execution_mcp import create_agent, TaskManager
+
+agent = create_agent()
+manager = TaskManager(agent, max_workers=5)
+
+# Dispatch background tasks
+task1 = manager.dispatch_task("Process large dataset")
+task2 = manager.dispatch_task("Analyze time series")
+
+# Continue working while tasks run...
+
+# Collect results when ready
+result1 = manager.wait_for_task(task1)
+result2 = manager.wait_for_task(task2)
 ```
 
-### Multi-Tool Workflows
-Chain multiple tools efficiently:
-```python
-task = "Get weather for top 10 US cities, compare temperatures, generate chart"
-result = execute_task(task)
+See the [API Documentation](DOCS.md) for complete usage examples.
+
+---
+
+## Configuration
+
+### Sandboxfile Settings
+
+Customize sandbox resources:
+
+```yaml
+sandboxes:
+  code-execution:
+    image: microsandbox/python
+    memory: 1024  # MB
+    cpus: 2.0     # cores
+    volumes:
+    - /path/to/workspace:/workspace
 ```
 
-### Parallel Execution
-Run multiple tasks concurrently:
-```python
-manager = TaskManager(agent)
-tasks = [manager.dispatch_task(f"Process file_{i}.csv") for i in range(100)]
-results = [manager.wait_for_task(t) for t in tasks]
+### Environment Variables
+
+```bash
+# Optional: Custom workspace
+export AGENTKERNEL_WORKSPACE=/path/to/workspace
+
+# Optional: Debug logging
+export AGENTKERNEL_LOG_LEVEL=DEBUG
+```
+
+See [Configuration Guide](DOCS.md#configuration) for all options.
+
+---
+
+## CLI Reference
+
+### Basic Commands
+
+```bash
+# Run tests
+python test_async_middleware.py
+
+# Check sandbox status
+docker ps | grep microsandbox
+
+# View logs
+tail -f ~/.microsandbox/logs/server.log
+```
+
+### Troubleshooting
+
+**Issue: "Invalid params for sandbox.start"**
+
+```bash
+# Solution: Rebuild microsandbox
+cd microsandbox && cargo build --release
+./target/release/msbserver --dev
+```
+
+**Issue: "cannot find sandbox in Sandboxfile"**
+
+```bash
+# Solution: Verify Sandboxfile exists and is configured
+cat ~/.microsandbox/namespaces/default/Sandboxfile
+```
+
+See [Troubleshooting Guide](DOCS.md#troubleshooting) for complete solutions.
+
+---
+
+## Features
+
+### Core Features
+
+- **Programmatic Tool Calling** - Execute workflows with generated Python code
+- **Async Middleware** - Background task execution and monitoring
+- **Sandbox Pooling** - Pre-warmed sandboxes for <100ms startup
+- **Volume Mounting** - Persistent workspace across executions
+- **MCP Integration** - Compatible with Model Context Protocol
+- **Guardrails** - Code validation and safety checks
+
+### Native Tools
+
+Core tools available in the sandbox:
+
+- **File Operations** - Read, write, and manipulate files
+- **Data Processing** - Pandas, NumPy for data analysis
+- **HTTP Requests** - Network calls and API integration
+- **State Management** - Persistent state across executions
+
+### Middleware
+
+Async task management:
+
+- `dispatch_background_task()` - Fire and forget pattern
+- `get_background_task_status()` - Check task progress
+- `wait_for_background_task()` - Block until completion
+- `list_background_tasks()` - View all running tasks
+- `cancel_background_task()` - Cancel execution
+
+---
+
+## Project Structure
+
+```
+agentkernel/
+├── client/           # Core agent implementation
+│   ├── agent.py      # AgentHelper class
+│   ├── task_manager.py  # Async middleware
+│   └── sandbox_executor.py  # Sandbox integration
+├── server/           # MCP server
+│   └── mcp_server.py # FastMCP server with tools
+├── config/           # Configuration
+├── examples/         # Usage examples
+├── tests/            # Test suite
+└── workspace/        # Default workspace
 ```
 
 ---
 
-## 📚 Documentation
+## Roadmap
 
-- **[Integration Guide](INTEGRATION_AND_PROGRESSIVE_DISCLOSURE_GUIDE.md)** - JWT-aware state, progressive disclosure
-- **[Examples](examples/)** - 14+ working examples
-- **[API Reference](DOCUMENTATION.md)** - Complete API documentation
-
----
-
-## 🤝 Comparison with Alternatives
-
-| Framework | Sandbox | Code Gen | Async | Cost | Speed |
-|-----------|---------|----------|-------|------|-------|
-| **AgentKernel** | Microsandbox (local) | Template + LLM (optional) | ✅ Built-in | Free | 🚀 <100ms |
-| open-ptc-agent | Daytona (cloud) | LLM-based | ✅ Built-in | $$$ | ⏱️ 2-5s |
-| langchain-code-exec | Various | LLM-based | ❌ | Varies | Varies |
+- [ ] Multi-language support (JavaScript, TypeScript)
+- [ ] Custom tool registry
+- [ ] Advanced monitoring and metrics
+- [ ] Cloud deployment templates
+- [ ] VSCode extension
+- [ ] Web UI for task management
 
 ---
 
-## 🛣️ Roadmap
+## Contributing
 
-- [x] Async middleware (TaskManager)
-- [x] Progressive tool discovery
-- [x] Sandbox pooling optimization
-- [ ] Docker sandbox backend option
-- [ ] Multi-language support (Node.js, Go)
-- [ ] Visual debugging / monitoring dashboard
-- [ ] Cloud deployment templates (K8s, Docker Compose)
+Contributions welcome! Please:
 
----
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) for details
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new features
+4. Submit a pull request
 
 ---
 
-## 🙏 Acknowledgements
+## Acknowledgements
 
-Built on:
-- [Microsandbox](https://microsandbox.dev) - Secure code execution
-- [FastMCP](https://github.com/jlowin/fastmcp) - MCP server framework
-- Anthropic's [Programmatic Tool Calling](https://www.anthropic.com/engineering/code-execution-with-mcp) pattern
-
----
-
-## 🌟 Star History
-
-If you find AgentKernel useful, please consider starring the repository!
+- Built on [Microsandbox](https://microsandbox.dev) for secure local execution
+- Inspired by Anthropic's [Programmatic Tool Calling](https://www.anthropic.com/engineering/code-execution-with-mcp)
+- Thanks to the LangChain and FastMCP communities
 
 ---
 
-**Ready to build blazing-fast agents?** [Get Started](#-quick-start) | [View Examples](examples/) | [Join Discussions](https://github.com/your-org/code-execution-mcp/discussions)
+## Star History
+
+⭐ Star this repo if you find it useful!
+
+---
+
+## License
+
+MIT License - See LICENSE file for details
+
+---
+
+## About
+
+**AgentKernel** - High-performance local runtime for autonomous agents
+
+**Topics**: ai-agents, mcp, programmatic-tool-calling, sandbox, async-execution, python
+
+**Resources**: [Documentation](DOCS.md) | [Examples](examples/) | [Issues](https://github.com/your-org/agentkernel/issues)

@@ -1,4 +1,4 @@
-# Code Execution MCP Examples
+# AgentKernel Examples
 
 This directory contains examples demonstrating different use cases of the code execution MCP framework.
 
