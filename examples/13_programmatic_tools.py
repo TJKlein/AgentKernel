@@ -16,7 +16,7 @@ from typing import Any, Dict
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from code_execution_mcp import create_server
+from agentkernel import create_server
 
 
 def example_register_single_tool():

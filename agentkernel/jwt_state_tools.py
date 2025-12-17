@@ -42,8 +42,8 @@ def create_jwt_state_tools(
         List of tool functions: [get_state, save_state]
         
     Example:
-        from code_execution_mcp import create_server
-        from code_execution_mcp.jwt_state_tools import create_jwt_state_tools
+        from agentkernel import create_server
+        from agentkernel.jwt_state_tools import create_jwt_state_tools
         from agent import orchestrator
         
         server = create_server()

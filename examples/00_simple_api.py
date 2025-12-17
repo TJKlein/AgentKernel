@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from code_execution_mcp import create_agent, execute_task
+    from agentkernel import create_agent, execute_task
 except ImportError:
     print("ERROR: Package not installed. Please install with: pip install -e .")
     sys.exit(1)

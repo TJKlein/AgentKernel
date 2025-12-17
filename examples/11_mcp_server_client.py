@@ -17,7 +17,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from code_execution_mcp import create_server, AppConfig, ExecutionConfig
+from agentkernel import create_server, AppConfig, ExecutionConfig
 
 
 async def example_server_setup():
@@ -29,12 +29,12 @@ async def example_server_setup():
     
     print("1. Create server with default configuration:")
     print("   (Loads from config.yaml / .env / defaults)")
-    print("   from code_execution_mcp import create_server")
+    print("   from agentkernel import create_server")
     print("   server = create_server()")
     print()
     
     print("2. Create server with custom configuration:")
-    print("   from code_execution_mcp import AppConfig, ExecutionConfig, create_server")
+    print("   from agentkernel import AppConfig, ExecutionConfig, create_server")
     print("   config = AppConfig(")
     print("       execution=ExecutionConfig(")
     print("           workspace_dir='./workspace',")
@@ -202,12 +202,12 @@ def example_running_server():
     print()
     
     print("Method 4: Programmatically")
-    print("  from code_execution_mcp import run_server")
+    print("  from agentkernel import run_server")
     print("  run_server(transport='stdio')")
     print()
     
     print("Method 5: With custom configuration")
-    print("  from code_execution_mcp import create_server, AppConfig")
+    print("  from agentkernel import create_server, AppConfig")
     print("  import asyncio")
     print("  ")
     print("  config = AppConfig(...)")

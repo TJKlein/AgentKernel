@@ -146,7 +146,7 @@ def example_direct_vs_mcp():
 
     print("DIRECT MODE (Current Examples):")
     print("  - Examples use framework directly")
-    print("  - Import: from code_execution_mcp import execute_task")
+    print("  - Import: from agentkernel import execute_task")
     print("  - Call: result, output, error = execute_task('task')")
     print("  - Pros: Simple, fast, no server needed")
     print("  - Cons: Framework must be installed locally")
@@ -278,7 +278,7 @@ if __name__ == "__main__":
     print()
     print("1. DIRECT MODE (default):")
     print("   - Use framework directly")
-    print("   - Import: from code_execution_mcp import execute_task")
+    print("   - Import: from agentkernel import execute_task")
     print("   - No server needed")
     print()
     print("2. MCP CLIENT MODE:")

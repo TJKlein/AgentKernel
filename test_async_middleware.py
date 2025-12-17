@@ -36,7 +36,7 @@ except Exception as e:
 # Test 1: Import Test
 print("\n[Test 1] Testing imports...")
 try:
-    from code_execution_mcp import create_agent, TaskManager
+    from agentkernel import create_agent, TaskManager
     print("✅ Imports successful")
 except ImportError as e:
     print(f"❌ Import failed: {e}")
@@ -159,6 +159,6 @@ print("✅ All critical tests passed!")
 print("=" * 60)
 print("\nAsync middleware is working correctly!")
 print("\nNext steps:")
-print("  1. Try: from code_execution_mcp import TaskManager")
+print("  1. Try: from agentkernel import TaskManager")
 print("  2. Create agent and dispatch async tasks")
 print("  3. Use MCP server with new async tools")

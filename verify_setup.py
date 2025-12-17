@@ -237,7 +237,7 @@ def main():
         print("AgentKernel is ready to use.")
         print()
         print("Try it:")
-        print("  python -c \"from code_execution_mcp import execute_task; print(execute_task('print(\\\"Hello!\\\")'))\"")
+        print("  python -c \"from agentkernel import execute_task; print(execute_task('print(\\\"Hello!\\\")'))\"")
     else:
         print("❌ SETUP INCOMPLETE")
         print("Please fix the issues above before using AgentKernel.")

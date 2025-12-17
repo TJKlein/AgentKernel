@@ -233,7 +233,7 @@ def create_context_tools_stubs(
         import_path: Path to import the MCP client from
     """
     try:
-        from code_execution_mcp.context_tools import create_context_tools
+        from agentkernel.context_tools import create_context_tools
         import sys
         from pathlib import Path
         

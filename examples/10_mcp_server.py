@@ -12,7 +12,7 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from code_execution_mcp import create_server, run_server, AppConfig, ExecutionConfig, LLMConfig
+from agentkernel import create_server, run_server, AppConfig, ExecutionConfig, LLMConfig
 
 
 def example_basic_server():
@@ -34,7 +34,7 @@ def example_basic_server():
     print("  python -m code_execution_mcp.server")
     print()
     print("Or programmatically:")
-    print("  from code_execution_mcp import run_server")
+    print("  from agentkernel import run_server")
     print("  run_server(transport='stdio')")
     print()
 

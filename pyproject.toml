@@ -3,20 +3,19 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "code-execution-mcp"
+name = "agentkernel"
 version = "0.1.0"
-description = "Code execution pattern for MCP with filesystem-based tool discovery and state persistence"
+description = "The High-Performance Local Runtime for Autonomous Agents"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
-    {name = "Code Execution MCP Team"}
+    {name = "AgentKernel Team"}
 ]
-keywords = ["mcp", "code-execution", "agents", "workflows", "form-filling"]
+keywords = ["ai-agents", "mcp", "programmatic-tool-calling", "sandbox", "async-execution"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -48,12 +47,12 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/code-execution-mcp"
-Documentation = "https://github.com/your-org/code-execution-mcp/docs"
-Repository = "https://github.com/your-org/code-execution-mcp"
+Homepage = "https://github.com/your-org/agentkernel"
+Documentation = "https://github.com/your-org/agentkernel/blob/main/DOCS.md"
+Repository = "https://github.com/your-org/agentkernel"
 
 [tool.setuptools]
-packages = ["code_execution_mcp", "client", "config", "server"]
+packages = ["agentkernel", "client", "config", "server"]
 
 [tool.black]
 line-length = 100

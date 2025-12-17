@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from code_execution_mcp import create_agent, create_server
+from agentkernel import create_agent, create_server
 
 
 class MCPToolTester:

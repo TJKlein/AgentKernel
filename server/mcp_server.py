@@ -235,7 +235,7 @@ class MCPServer:
                 Dictionary with search results based on detail_level
             """
             try:
-                from code_execution_mcp.client.tool_metadata import ToolMetadataIndex
+                from agentkernel.client.tool_metadata import ToolMetadataIndex
 
                 metadata_index = ToolMetadataIndex(self.agent.fs_helper.servers_dir)
 
@@ -483,7 +483,7 @@ class MCPServer:
 
         Example:
             from fastapi import FastAPI
-            from code_execution_mcp import create_server
+            from agentkernel import create_server
 
             app = FastAPI()
             mcp_server = create_server()

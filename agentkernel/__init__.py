@@ -4,7 +4,7 @@ This package provides a simple, high-level API for executing tasks using MCP ser
 through Python code generation and sandboxed execution.
 
 Quick Start:
-    >>> from code_execution_mcp import create_agent, execute_task
+    >>> from agentkernel import create_agent, execute_task
     >>> agent = create_agent()
     >>> result, output, error = execute_task("Calculate 5 + 3")
 """

@@ -34,8 +34,8 @@ def create_context_tools(
         List of tool functions that can be registered with MCPServer
 
     Example:
-        from code_execution_mcp import create_server
-        from code_execution_mcp.context_tools import create_context_tools
+        from agentkernel import create_server
+        from agentkernel.context_tools import create_context_tools
         import sys
         sys.path.insert(0, '/path/to/backend')
         from agent import orchestrator
