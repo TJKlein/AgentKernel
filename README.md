@@ -54,6 +54,7 @@ Built on **Microsandbox** for secure local execution with enterprise-grade isola
 
 ## What's New
 
+- **Skill Management** - Save and reuse code patterns across sessions (Anthropic's "Skills" pattern)
 - **Async Middleware** - Background task execution with "fire and collect" pattern
 - **Task Monitoring** - `wait_for_task()` and `get_task_status()` tools for async workflows
 - **Sandbox Pooling** - <100ms startup with pre-warmed sandbox pool
@@ -172,6 +173,37 @@ task2 = manager.dispatch_task("Analyze time series")
 # Collect results when ready
 result1 = manager.wait_for_task(task1)
 result2 = manager.wait_for_task(task2)
+```
+
+### With Skill Management
+
+```python
+from agentkernel import create_agent, SkillManager
+
+agent = create_agent()
+skill_manager = SkillManager()
+
+# Agent writes successful code
+code = """
+def analyze_sentiment(text):
+    # Complex sentiment analysis logic
+    return score
+"""
+
+# Save as reusable skill
+skill_manager.save_skill(
+    name="sentiment_analyzer",
+    code=code,
+    description="Analyze sentiment of text",
+    tags=["nlp", "sentiment"]
+)
+
+# Later sessions: agent imports and reuses
+reuse_code = """
+from skills import sentiment_analyzer
+result = sentiment_analyzer.analyze_sentiment("Great product!")
+"""
+agent.execute_task(reuse_code)
 ```
 
 See the [API Documentation](DOCS.md) for complete usage examples.

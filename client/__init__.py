@@ -14,6 +14,7 @@ Architecture:
 # Orchestration Layer
 from client.agent_helper import AgentHelper
 from client.task_manager import TaskManager # Async middleware
+from client.skill_manager import SkillManager # Skill management
 
 # Execution Layer
 from client.sandbox_executor import SandboxExecutor
@@ -51,6 +52,7 @@ __all__ = [
     # Orchestration
     "AgentHelper",
     "TaskManager",  # Async middleware
+    "SkillManager",  # Skill management
     # Execution
     "SandboxExecutor",
     "SandboxPool",

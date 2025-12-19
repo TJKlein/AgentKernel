@@ -16,6 +16,7 @@ except ImportError:
 from client.agent_helper import AgentHelper
 from client.filesystem_helpers import FilesystemHelper
 from client.sandbox_executor import SandboxExecutor
+from client.skill_manager import SkillManager
 from client.task_manager import TaskManager
 from config.loader import load_config
 from config.schema import AppConfig
@@ -45,6 +46,7 @@ class MCPServer:
         self.config = config or load_config()
         self.agent = agent or self._create_agent()
         self.task_manager = TaskManager(self.agent)  # Initialize async middleware
+        self.skill_manager = SkillManager(self.config.execution.workspace_dir)  # Initialize skill management
         self.mcp = FastMCP("AgentKernel")  # Updated branding
         self._setup_tools()
 
@@ -432,6 +434,123 @@ class MCPServer:
             except Exception as e:
                 logger.error(f"Error cancelling task: {e}", exc_info=True)
                 return {"error": str(e), "cancelled": False}
+
+        # ============================================================
+        # SKILL MANAGEMENT TOOLS
+        # ============================================================
+        
+        @self.mcp.tool()
+        def save_skill(
+            name: str,
+            code: str,
+            description: str,
+            tags: str = "",
+        ) -> Dict[str, Any]:
+            """Save a reusable code pattern as a skill.
+            
+            Skills are Python modules that the agent can import and reuse
+            across sessions. This follows the "Skills" pattern from Anthropic.
+            
+            Args:
+                name: Skill name (must be valid Python identifier)
+                code: Python code for the skill
+                description: Human-readable description of what the skill does
+                tags: Optional comma-separated tags (e.g., "data,csv,cleaning")
+                
+            Returns:
+                Dictionary with status and file path
+                
+            Example:
+                save_skill(
+                    name="csv_merger",
+                    code="def merge_csvs(files): ...",
+                    description="Merge multiple CSV files into one",
+                    tags="data,csv"
+                )
+            """
+            try:
+                tag_list = [t.strip() for t in tags.split(",")] if tags else []
+                result = self.skill_manager.save_skill(
+                    name=name,
+                    code=code,
+                    description=description,
+                    tags=tag_list
+                )
+                return result
+            except Exception as e:
+                logger.error(f"Error saving skill: {e}", exc_info=True)
+                return {"error": str(e), "status": "failed"}
+
+        @self.mcp.tool()
+        def get_skill(name: str) -> Dict[str, Any]:
+            """Get a skill's code and metadata.
+            
+            Args:
+                name: Skill name
+                
+            Returns:
+                Dictionary with skill code and metadata
+            """
+            try:
+                return self.skill_manager.get_skill(name)
+            except Exception as e:
+                logger.error(f"Error getting skill: {e}", exc_info=True)
+                return {"error": str(e)}
+
+        @self.mcp.tool()
+        def list_skills() -> Dict[str, Any]:
+            """List all available skills.
+            
+            Returns:
+                Dictionary with list of skills and their metadata
+            """
+            try:
+                skills = self.skill_manager.list_skills()
+                return {
+                    "skills": skills,
+                    "count": len(skills),
+                }
+            except Exception as e:
+                logger.error(f"Error listing skills: {e}", exc_info=True)
+                return {"error": str(e), "skills": []}
+
+        @self.mcp.tool()
+        def delete_skill(name: str) -> Dict[str, Any]:
+            """Delete a skill.
+            
+            Args:
+                name: Skill name
+                
+            Returns:
+                Dictionary with status
+            """
+            try:
+                return self.skill_manager.delete_skill(name)
+            except Exception as e:
+                logger.error(f"Error deleting skill: {e}", exc_info=True)
+                return {"error": str(e), "status": "failed"}
+
+        @self.mcp.tool()
+        def search_skills(query: str) -> Dict[str, Any]:
+            """Search skills by name, description, or tags.
+            
+            Args:
+                query: Search query
+                
+            Returns:
+                Dictionary with matching skills
+            """
+            try:
+                skills = self.skill_manager.search_skills(query)
+                return {
+                    "skills": skills,
+                    "count": len(skills),
+                    "query": query,
+                }
+            except Exception as e:
+                logger.error(f"Error searching skills: {e}", exc_info=True)
+                return {"error": str(e), "skills": []}
+
 
     def register_tool(self, tool_func: Callable, name: Optional[str] = None) -> None:
         """Register a custom tool programmatically.

@@ -17,6 +17,7 @@ from client import (
     # Orchestration
     AgentHelper,
     TaskManager,  # Async middleware
+    SkillManager,  # Skill management
     # Execution
     SandboxExecutor,
     SandboxPool,
@@ -74,6 +75,7 @@ __all__ = [
     # Orchestration
     "AgentHelper",
     "TaskManager",  # Async middleware
+    "SkillManager",  # Skill management
     # Execution
     "SandboxExecutor",
     "SandboxPool",
