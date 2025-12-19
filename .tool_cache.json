@@ -1,0 +1,82 @@
+{
+  "version": "1.0",
+  "tools": {
+    "calculator.add": {
+      "description": "calculator add: Add two numbers together.",
+      "hash": "66d8fc874bad31be2711efff87759d77",
+      "path": "/Users/d065243/code-execution-mcp/servers/calculator/add.py",
+      "server": "calculator",
+      "tool": "add"
+    },
+    "calculator.calculate": {
+      "description": "calculator calculate: Evaluate a mathematical expression.",
+      "hash": "d2f9bc0ec81d0eb3dfb85b6267d0d3b9",
+      "path": "/Users/d065243/code-execution-mcp/servers/calculator/calculate.py",
+      "server": "calculator",
+      "tool": "calculate"
+    },
+    "calculator.multiply": {
+      "description": "calculator multiply: Multiply two numbers together.",
+      "hash": "a4ef6758b23208f16c279f5c5eb954b0",
+      "path": "/Users/d065243/code-execution-mcp/servers/calculator/multiply.py",
+      "server": "calculator",
+      "tool": "multiply"
+    },
+    "database.execute": {
+      "description": "database execute: Execute a SQL statement (INSERT, UPDATE, DELETE) on the database.",
+      "hash": "ac4a9a1cd82daf63cef6abc89dffdc45",
+      "path": "/Users/d065243/code-execution-mcp/servers/database/execute.py",
+      "server": "database",
+      "tool": "execute"
+    },
+    "database.list_tables": {
+      "description": "database list_tables: List all tables in the database.",
+      "hash": "a8c701f0a8f16217afeadc2e32176530",
+      "path": "/Users/d065243/code-execution-mcp/servers/database/list_tables.py",
+      "server": "database",
+      "tool": "list_tables"
+    },
+    "database.query": {
+      "description": "database query: Execute a SQL query on the database.",
+      "hash": "8688535ca550bd65dafb6bec2bd9b53f",
+      "path": "/Users/d065243/code-execution-mcp/servers/database/query.py",
+      "server": "database",
+      "tool": "query"
+    },
+    "filesystem.list_directory": {
+      "description": "filesystem list_directory: List the contents of a directory.",
+      "hash": "e82f96724aa3588dde04c159ab95b9e3",
+      "path": "/Users/d065243/code-execution-mcp/servers/filesystem/list_directory.py",
+      "server": "filesystem",
+      "tool": "list_directory"
+    },
+    "filesystem.read_file": {
+      "description": "filesystem read_file: Read the contents of a file.",
+      "hash": "54759957fac8f025c87b2ff4bb5a3ce5",
+      "path": "/Users/d065243/code-execution-mcp/servers/filesystem/read_file.py",
+      "server": "filesystem",
+      "tool": "read_file"
+    },
+    "filesystem.write_file": {
+      "description": "filesystem write_file: Write content to a file.",
+      "hash": "0bffc7efbef21b1d16707a7965389937",
+      "path": "/Users/d065243/code-execution-mcp/servers/filesystem/write_file.py",
+      "server": "filesystem",
+      "tool": "write_file"
+    },
+    "weather.get_forecast": {
+      "description": "weather get_forecast: Get weather forecast for a location.",
+      "hash": "386fdacac16dd38c691afa3bcf9b2f5d",
+      "path": "/Users/d065243/code-execution-mcp/servers/weather/get_forecast.py",
+      "server": "weather",
+      "tool": "get_forecast"
+    },
+    "weather.get_weather": {
+      "description": "weather get_weather: Get current weather information for a location.",
+      "hash": "cf8d3317811186048b129eb4a95fcd38",
+      "path": "/Users/d065243/code-execution-mcp/servers/weather/get_weather.py",
+      "server": "weather",
+      "tool": "get_weather"
+    }
+  }
+}
