@@ -1,4 +1,7 @@
 # AgentKernel
+A minimal kernel for agentic systems.
+
+Created and maintained by **Tassilo J. Klein**  
 
 [Getting Started](#getting-started) | [Configuration](#configuration) | [CLI Reference](#cli-reference) | [API Documentation](DOCS.md) | [Roadmap](#roadmap)
 
