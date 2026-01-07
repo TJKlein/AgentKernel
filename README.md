@@ -1,27 +1,130 @@
 # AgentKernel
+
 A minimal kernel for agentic systems.
 
-Created and maintained by **Tassilo J. Klein**  
+**AgentKernel is my attempt to make the runtime structure of agent systems explicit and minimal.**
 
-[Getting Started](#getting-started) | [Configuration](#configuration) | [CLI Reference](#cli-reference) | [API Documentation](DOCS.md) | [Roadmap](#roadmap)
-
-**The High-Performance Local Runtime for Autonomous Agents**
-
-Demo: Processing 1M+ rows of financial data with 100x faster execution and zero cloud costs
+Created and maintained by **Tassilo J. Klein**
 
 ---
 
-## What is Programmatic Tool Calling?
+[Getting Started](#getting-started) ·
+[Configuration](#configuration) ·
+[CLI Reference](#cli-reference) ·
+[API Documentation](DOCS.md) ·
+[Roadmap](#roadmap)
 
-AgentKernel is an open source implementation of Anthropic's [Programmatic Tool Calling (PTC)](https://www.anthropic.com/engineering/code-execution-with-mcp), which enables agents to invoke tools with code execution rather than making individual JSON tool calls. This paradigm is featured in their engineering blog [Code execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp).
+---
 
-## Why PTC?
+## Why I Built This
 
-1. **LLMs excel at writing code!** They understand context, reason about data flows, and generate precise logic. PTC lets them orchestrate entire workflows rather than reasoning through one tool call at a time.
+I kept encountering the same issue across agent frameworks:  
+the interesting complexity is not in prompts or tools, but in the *runtime*.
 
-2. **Token efficiency through local processing.** Traditional tool calling returns full results to the model's context. Fetching 1 year of stock prices for 10 tickers means 2,500+ OHLCV data points - tens of thousands of tokens. With PTC, code runs in a sandbox, processes data locally, and only the final output returns. Result: **85-98% token reduction**.
+Most systems tightly couple planning, execution, state, and tooling
+into framework-specific abstractions. I wanted to understand what
+remains invariant if you strip agents down to their computational core.
 
-3. **Optimized for data-intensive tasks.** PTC shines when working with large volumes of structured data, time series analysis, and scenarios requiring filtering, aggregating, or transforming results before returning them to the model.
+**AgentKernel** is my attempt to factor agent systems into the smallest
+set of stable primitives: execution, state, control, and tool interaction.
+
+AgentKernel reflects how I think about agent systems: **runtimes first, prompts second**.
+
+---
+
+## Design Philosophy
+
+AgentKernel is intentionally minimal.
+
+Instead of adding features, it removes assumptions:
+- no opinionated planning strategy  
+- no baked-in prompt formats  
+- no framework-level orchestration  
+
+The goal is not to be a full agent framework, but a *kernel*:
+a small, explicit execution substrate that other systems can build on.
+
+I expect this decomposition to evolve as agent systems mature.
+
+---
+
+## Context and Related Work
+
+This work was directly inspired by recent engineering posts from Anthropic
+([*Code Execution with MCP*](https://www.anthropic.com/engineering/code-execution-with-mcp))
+and Cloudflare ([*Code Mode*](https://blog.cloudflare.com/code-mode/)),
+which describe a shared architectural pattern for agent runtimes:
+
+Instead of exposing all tools directly to a language model, agents
+can generate executable code that interacts with tool APIs via
+a runtime layer.
+
+I arrived at a similar decomposition independently while exploring
+how to make agent execution explicit, inspectable, and durable.
+
+AgentKernel implements this pattern in a minimal, framework-agnostic
+form — focusing on the underlying runtime rather than
+ecosystem-specific implementations.
+
+---
+
+## What This Is (and Is Not)
+
+**AgentKernel is:**
+- a minimal execution loop for agent systems  
+- explicit about state, control flow, and tool invocation  
+- designed to surface runtime structure rather than hide it  
+
+**AgentKernel is not:**
+- a batteries-included agent framework  
+- a prompt library  
+- a replacement for higher-level orchestration systems  
+
+---
+
+## Who This Is For
+
+AgentKernel is intended for:
+- researchers studying agent architectures  
+- engineers building custom agent runtimes  
+- anyone interested in the foundations of agent execution  
+
+If you are looking for a full-featured framework, this is probably
+not what you want.  
+If you want to understand *how agents actually run*, this is.
+
+---
+
+## Programmatic Tool Execution
+
+AgentKernel implements the same programmatic tool execution pattern
+described by Anthropic as *Programmatic Tool Calling (PTC)*.
+
+Instead of issuing individual structured tool calls, agents generate
+and execute code that interacts with tools through a runtime layer.
+This allows agents to reason over large datasets locally and return
+only distilled results.
+
+This pattern is particularly effective for:
+- data-intensive workflows  
+- iterative computation  
+- scenarios where intermediate results should not enter the model context  
+
+---
+
+## Why Programmatic Tool Execution?
+
+1. **LLMs excel at writing code**  
+   They reason naturally in programs, data flows, and control structures.
+
+2. **Token efficiency through local execution**  
+   Large intermediate results are processed locally and never enter
+   the model context.
+
+3. **Better control and inspectability**  
+   Execution becomes explicit, debuggable, and auditable.
+
+---
 
 ## How It Works
 
@@ -55,24 +158,29 @@ User Task
 
 Built on **Microsandbox** for secure local execution with enterprise-grade isolation.
 
-## What's New
+---
 
-- **Skill Management** - Save and reuse code patterns across sessions (Anthropic's "Skills" pattern)
-- **Async Middleware** - Background task execution with "fire and collect" pattern
-- **Task Monitoring** - `wait_for_task()` and `get_task_status()` tools for async workflows
-- **Sandbox Pooling** - <100ms startup with pre-warmed sandbox pool
-- **Volume Mounting** - Persistent workspace for tool libraries and state
-- **Zero Cloud Costs** - 100% local execution, no API fees
+## Performance Characteristics
 
-## Why AgentKernel?
-
-| Feature | AgentKernel | Cloud Solutions |
-|---------|-------------|-----------------|
-| **Speed** | <100ms startup | 2-5s API latency |
+| Dimension | AgentKernel | Cloud Solutions |
+|-----------|-------------|-----------------|
+| **Startup** | <100ms | 2-5s API latency |
 | **Cost** | $0 (self-hosted) | $0.10-0.50/hour |
 | **Privacy** | 100% local | Cloud processing |
 | **Token Usage** | 50-500 tokens | 5,000-50,000 tokens |
 | **Network** | Optional | Required |
+
+---
+
+## Key Features
+
+- **Programmatic Tool Calling** - Execute workflows with generated Python code
+- **Async Middleware** - Background task execution with "fire and collect" pattern
+- **Sandbox Pooling** - Pre-warmed sandboxes for <100ms startup
+- **Volume Mounting** - Persistent workspace across executions
+- **Skill Management** - Save and reuse code patterns across sessions
+- **MCP Integration** - Compatible with Model Context Protocol
+- **Guardrails** - Code validation and safety checks
 
 ---
 
