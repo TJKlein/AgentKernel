@@ -1,5 +1,7 @@
 # AgentKernel
 
+![AgentKernel Banner](assets/agentkernel_banner.png)
+
 A minimal kernel for agentic systems.
 
 **AgentKernel is my attempt to make the runtime structure of agent systems explicit and minimal.**
