@@ -18,10 +18,10 @@ try:
     from sentence_transformers import SentenceTransformer
 
     HAS_SENTENCE_TRANSFORMERS = True
-except ImportError:
+except Exception as e:
     HAS_SENTENCE_TRANSFORMERS = False
     SentenceTransformer = None  # type: ignore
-    logger.warning("sentence-transformers not available. Using keyword matching instead.")
+    logger.warning(f"sentence-transformers not available or broken ({e}). Using keyword matching instead.")
 
 # Class-level model cache to avoid reloading the model across instances
 _SHARED_MODEL: Optional[Any] = None
@@ -111,8 +111,8 @@ class ToolSelector:
                                 logger.info("GPU available, using CUDA for embeddings")
                             else:
                                 logger.debug("GPU not available, using CPU")
-                        except ImportError:
-                            logger.debug("PyTorch not available, using CPU")
+                        except Exception as e:
+                            logger.debug(f"PyTorch not available or broken ({e}), using CPU")
                     
                     logger.info(f"Loading sentence-transformers model on {device}...")
                     # Use a lightweight, fast model
@@ -131,8 +131,8 @@ class ToolSelector:
                     try:
                         import torch
                         device = "cuda" if torch.cuda.is_available() else "cpu"
-                    except ImportError:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"PyTorch broken ({e}), using CPU")
                 
                 logger.info(f"Loading sentence-transformers model on {device}...")
                 self._model = SentenceTransformer("all-MiniLM-L6-v2", device=device)

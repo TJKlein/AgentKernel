@@ -17,7 +17,8 @@ from client.task_manager import TaskManager # Async middleware
 from client.skill_manager import SkillManager # Skill management
 
 # Execution Layer
-from client.sandbox_executor import SandboxExecutor
+from client.sandbox_executor import MicrosandboxExecutor
+from client.monty_executor import MontyExecutor
 from client.sandbox_pool import SandboxPool
 from client.base import CodeExecutor, ExecutionResult, ValidationResult
 
@@ -54,7 +55,8 @@ __all__ = [
     "TaskManager",  # Async middleware
     "SkillManager",  # Skill management
     # Execution
-    "SandboxExecutor",
+    "MicrosandboxExecutor",
+    "MontyExecutor",
     "SandboxPool",
     "CodeExecutor",
     "ExecutionResult",

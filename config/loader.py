@@ -60,8 +60,8 @@ def load_config_from_env() -> Dict[str, Any]:
 
     # Load execution config
     config["execution"] = {
+        "sandbox_type": os.environ.get("SANDBOX_TYPE", "microsandbox"),
         "workspace_dir": os.environ.get("WORKSPACE_DIR", "./workspace"),
-        "servers_dir": os.environ.get("SERVERS_DIR", "./servers"),
         "skills_dir": os.environ.get("SKILLS_DIR", "./skills"),
         "allow_network_access": os.environ.get("ALLOW_NETWORK_ACCESS", "false").lower() == "true",
         "state": {

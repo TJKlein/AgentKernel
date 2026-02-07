@@ -9,7 +9,10 @@ Quick Start:
     >>> result, output, error = execute_task("Calculate 5 + 3")
 """
 
+import logging
 from typing import Optional, Tuple, Any
+
+logger = logging.getLogger(__name__)
 
 # Re-export main components for advanced usage
 # Organized by architectural layer for clarity
@@ -19,7 +22,8 @@ from client import (
     TaskManager,  # Async middleware
     SkillManager,  # Skill management
     # Execution
-    SandboxExecutor,
+    MicrosandboxExecutor,
+    MontyExecutor,
     SandboxPool,
     CodeExecutor,
     ExecutionResult,
@@ -61,11 +65,12 @@ from server import MCPServer, create_server, run_server
 # Import for factory function (use internal imports)
 from client.agent_helper import AgentHelper as _AgentHelper
 from client.filesystem_helpers import FilesystemHelper as _FilesystemHelper
-from client.sandbox_executor import SandboxExecutor as _SandboxExecutor
+from client.sandbox_executor import MicrosandboxExecutor as _MicrosandboxExecutor
+from client.monty_executor import MontyExecutor as _MontyExecutor
 from config.loader import load_config as _load_config
 from config.schema import AppConfig as _AppConfig, OptimizationConfig
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = [
     # Main API
@@ -77,7 +82,8 @@ __all__ = [
     "TaskManager",  # Async middleware
     "SkillManager",  # Skill management
     # Execution
-    "SandboxExecutor",
+    "MicrosandboxExecutor",
+    "MontyExecutor",
     "SandboxPool",
     "CodeExecutor",
     "ExecutionResult",
@@ -242,12 +248,27 @@ def create_agent(
         skills_dir=skills,
     )
     
-    # Initialize sandbox executor
-    executor = _SandboxExecutor(
-        execution_config=config.execution,
-        guardrail_config=config.guardrails,
-        optimization_config=config.optimizations,
-    )
+    # Initialize appropriate executor based on config
+    sandbox_type = config.execution.sandbox_type.lower()
+    
+    if sandbox_type == "monty":
+        executor = _MontyExecutor(
+            execution_config=config.execution,
+            guardrail_config=config.guardrails,
+            optimization_config=config.optimizations,
+        )
+        logger.info("Using Monty execution backend")
+    else:
+        # Default to Microsandbox
+        executor = _MicrosandboxExecutor(
+            execution_config=config.execution,
+            guardrail_config=config.guardrails,
+            optimization_config=config.optimizations,
+        )
+        if sandbox_type != "microsandbox":
+            logger.warning(f"Unknown sandbox type '{sandbox_type}', falling back to microsandbox")
+        else:
+            logger.info("Using Microsandbox execution backend")
     
     # Initialize agent helper
     agent = _AgentHelper(

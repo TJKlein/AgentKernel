@@ -3,6 +3,7 @@
 ![AgentKernel Banner](assets/agentkernel_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](file:///Users/d065243/Downloads/AgentKernel/pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
@@ -117,7 +118,7 @@ print(result.output)
 
 Our roadmap focuses on increasing the fidelity and speed of the execution substrate.
 
-- [ ] **Experimental Runtimes**: Investigate [`pydantic/monty`](https://github.com/pydantic/monty) for sub-millisecond, pure-logic execution.
+- [x] **Experimental Runtimes**: Added support for [`pydantic/monty`](https://github.com/pydantic/monty) for sub-millisecond, pure-logic execution.
 - [ ] **Observability**: OpenTelemetry integration for kernel traces.
 - [ ] **Distribution**: Cloud-init templates for scalable deployment.
 

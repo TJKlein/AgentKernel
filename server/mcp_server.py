@@ -14,8 +14,6 @@ except ImportError:
     FastMCP = None  # type: ignore
 
 from client.agent_helper import AgentHelper
-from client.filesystem_helpers import FilesystemHelper
-from client.sandbox_executor import SandboxExecutor
 from client.skill_manager import SkillManager
 from client.task_manager import TaskManager
 from config.loader import load_config
@@ -56,24 +54,10 @@ class MCPServer:
 
     def _create_agent(self) -> AgentHelper:
         """Create a default AgentHelper instance."""
-        fs_helper = FilesystemHelper(
-            workspace_dir=self.config.execution.workspace_dir,
-            servers_dir=self.config.execution.servers_dir,
-            skills_dir=self.config.execution.skills_dir,
-        )
-
-        executor = SandboxExecutor(
-            execution_config=self.config.execution,
-            guardrail_config=self.config.guardrails,
-            optimization_config=self.config.optimizations,
-        )
-
-        return AgentHelper(
-            fs_helper,
-            executor,
-            optimization_config=self.config.optimizations,
-            llm_config=self.config.llm,
-        )
+        # Use factory to handle configuration and executor selection centrally
+        # Import here to avoid circular dependency
+        from agentkernel import create_agent
+        return create_agent(config=self.config)
 
     def _setup_tools(self) -> None:
         """Register MCP tools."""
@@ -552,6 +536,16 @@ class MCPServer:
                 return {"error": str(e), "skills": []}
 
 
+        @self.mcp.tool()
+        def get_version() -> str:
+            """Get the current version of the AgentKernel framework.
+            
+            Returns:
+                Version string (e.g., "0.1.1")
+            """
+            from agentkernel import __version__
+            return __version__
+
     def register_tool(self, tool_func: Callable, name: Optional[str] = None) -> None:
         """Register a custom tool programmatically.
 
@@ -670,6 +664,11 @@ def run_server(
 if __name__ == "__main__":
     # Allow running as a script
     import sys
+    from agentkernel import __version__
+
+    if "--version" in sys.argv:
+        print(f"AgentKernel v{__version__}")
+        sys.exit(0)
 
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
     run_server(transport=transport)

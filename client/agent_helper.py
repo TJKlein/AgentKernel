@@ -13,7 +13,7 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 
 from client.filesystem_helpers import FilesystemHelper
-from client.sandbox_executor import SandboxExecutor
+from client.base import CodeExecutor
 from client.tool_selector import ToolSelector
 from client.code_generator import CodeGenerator
 from config.schema import OptimizationConfig
@@ -27,7 +27,7 @@ class AgentHelper:
     def __init__(
         self,
         fs_helper: FilesystemHelper,
-        executor: SandboxExecutor,
+        executor: CodeExecutor,
         tool_selector: Optional[ToolSelector] = None,
         code_generator: Optional[CodeGenerator] = None,
         optimization_config: Optional[OptimizationConfig] = None,
@@ -37,7 +37,7 @@ class AgentHelper:
 
         Args:
             fs_helper: FilesystemHelper instance
-            executor: SandboxExecutor instance
+            executor: CodeExecutor instance
             tool_selector: Optional ToolSelector (creates default if None)
             code_generator: Optional CodeGenerator (creates default if None)
             optimization_config: Optional OptimizationConfig (defaults to enabled)
