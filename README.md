@@ -75,8 +75,10 @@ AgentKernel is designed for high-throughput, low-latency execution of agent-gene
 
 AgentKernel supports pluggable execution runtimes to match workload requirements:
 
-*   **Microsandbox (Default)**: Full Linux MicroVMs. Requires [TJKlein/microsandbox](https://github.com/TJKlein/microsandbox) (contains small patches/hacks for volume mounting). Best for complex dependencies, system tools, and isolation.
-*   **Monty (Experimental)**: [High-performance Python interpreter](https://github.com/pydantic/monty). Best for pure-logic tasks requiring sub-millisecond cold starts.
+*   **Microsandbox (Default)**: Full Linux MicroVMs. Requires [TJKlein/microsandbox](https://github.com/TJKlein/microsandbox) (contains small patches/hacks for volume mounting).
+    *   *Advantage*: Supports complex system dependencies (compilers, databases, apt packages) and full OS isolation.
+*   **Monty (Experimental)**: [High-performance Python interpreter](https://github.com/pydantic/monty).
+    *   *Advantage*: Enables **sub-millisecond cold starts** and **in-process execution bridging**, ideal for pure-logic reasoning loops where VM overhead is noticeable.
 
 ## 4. Getting Started
 
