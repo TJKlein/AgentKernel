@@ -81,7 +81,30 @@ AgentKernel supports pluggable execution runtimes to match workload requirements
 *   **Monty (Experimental)**: [High-performance Python interpreter](https://github.com/pydantic/monty).
     *   *Advantage*: Enables **sub-millisecond cold starts** and **in-process execution bridging**, ideal for pure-logic reasoning loops where VM overhead is noticeable.
 
-## 4. Getting Started
+## 4. Configuration
+
+You can select the execution backend via the `SANDBOX_TYPE` environment variable or in the configuration file.
+
+| Setting | Environment Variable | Options | Default |
+|---------|----------------------|---------|---------|
+| Sandbox Type | `SANDBOX_TYPE` | `microsandbox`, `monty` | `microsandbox` |
+
+### Switching Backends
+
+To use the **Monty** backend (experimental):
+```bash
+export SANDBOX_TYPE=monty
+python your_agent.py
+```
+
+To switch back to **Microsandbox** (default):
+```bash
+export SANDBOX_TYPE=microsandbox
+# or simply unset it
+unset SANDBOX_TYPE
+```
+
+## 5. Getting Started
 
 ### Installation
 
