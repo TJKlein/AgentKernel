@@ -10,6 +10,9 @@
 
 AgentKernel decouples the runtime execution environment from agent policy, providing a stable, high-performance primitive for building durable agent systems. By factoring out execution, state, and tool orchestration into a dedicated kernel, we enable agents to reason over large datasets locally through programmatic code generation rather than chat-based tool calling.
 
+> [!WARNING]
+> **Experimental Software**: This project is currently in early development. The required patches to `microsandbox` (for volume support) are experimental hacks and **not intended for production use**. Use at your own risk.
+
 ---
 
 ## 1. Philosophy: Runtimes First
@@ -38,7 +41,7 @@ graph TD
     end
 
     subgraph "Execution Environment (Sandboxed)"
-        VM[Runtime Environment<br/>(e.g. Microsandbox)]
+        VM["Runtime Environment<br/>(e.g. Microsandbox)"]
         T[MCP Tools]
         D[Data Context]
     end
@@ -72,7 +75,7 @@ AgentKernel is designed for high-throughput, low-latency execution of agent-gene
 
 AgentKernel supports pluggable execution runtimes to match workload requirements:
 
-*   **Microsandbox (Default)**: Full Linux MicroVMs. Best for complex dependencies, system tools, and isolation.
+*   **Microsandbox (Default)**: Full Linux MicroVMs. Requires [TJKlein/microsandbox](https://github.com/TJKlein/microsandbox) (contains small patches/hacks for volume mounting). Best for complex dependencies, system tools, and isolation.
 *   **Monty (Experimental)**: [High-performance Python interpreter](https://github.com/pydantic/monty). Best for pure-logic tasks requiring sub-millisecond cold starts.
 
 ## 4. Getting Started
@@ -83,7 +86,7 @@ AgentKernel supports pluggable execution runtimes to match workload requirements
 pip install agentkernel
 ```
 
-*Note: AgentKernel uses [Microsandbox](https://github.com/TJKlein/microsandbox) as the default runtime. Please ensure the `microsandbox` daemon is running for standard operation.*
+*Note: AgentKernel relies on a [fork of Microsandbox](https://github.com/TJKlein/microsandbox) with small patches/hacks to support volume mounting. The standard installation will not work.*
 
 ### Quick Example
 
