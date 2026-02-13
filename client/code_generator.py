@@ -94,6 +94,7 @@ class CodeGenerator:
             List of import statements
         """
         import_statements = []
+        required_tools = required_tools or {}
         for server_name, tools in required_tools.items():
             if tools:
                 tool_imports = ", ".join(tools)
@@ -117,7 +118,7 @@ class CodeGenerator:
             List of code blocks (strings)
         """
         usage_code = []
-
+        required_tools = required_tools or {}
         for server_name, tools in required_tools.items():
             if not tools:
                 continue
@@ -266,6 +267,7 @@ print(f"{tool_name}() = {{result}}")"""
         try:
             # Build tool descriptions for prompt
             tool_info = []
+            required_tools = required_tools or {}
             for server_name, tools in required_tools.items():
                 for tool_name in tools:
                     key = (server_name, tool_name)

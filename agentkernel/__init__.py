@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 from client import (
     # Orchestration
     AgentHelper,
+    RecursiveAgent,
     TaskManager,  # Async middleware
     SkillManager,  # Skill management
     # Execution
@@ -64,6 +65,7 @@ from server import MCPServer, create_server, run_server
 
 # Import for factory function (use internal imports)
 from client.agent_helper import AgentHelper as _AgentHelper
+from client.recursive_agent import RecursiveAgent
 from client.filesystem_helpers import FilesystemHelper as _FilesystemHelper
 from client.sandbox_executor import MicrosandboxExecutor as _MicrosandboxExecutor
 from client.monty_executor import MontyExecutor as _MontyExecutor
@@ -79,6 +81,7 @@ __all__ = [
     # Components (organized by architectural layer)
     # Orchestration
     "AgentHelper",
+    "RecursiveAgent",
     "TaskManager",  # Async middleware
     "SkillManager",  # Skill management
     # Execution

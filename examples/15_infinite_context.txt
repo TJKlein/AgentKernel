@@ -1,0 +1,14 @@
+This is line 1 of a very large log file.
+Everything is normal.
+[INFO] System started.
+[INFO] Loading modules...
+[INFO] Module A loaded.
+[INFO] Module B loaded.
+...
+(Imagine thousands of lines here)
+...
+[ERROR] Critical failure in module Z. Error code: ER-998877
+...
+[INFO] Shutting down.
+Everything is normal again.
+End of log.

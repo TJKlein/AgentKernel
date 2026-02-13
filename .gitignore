@@ -48,6 +48,7 @@ dmypy.json
 # Environment
 .env
 .env.local
+!.env.example
 
 # Logs
 logs/

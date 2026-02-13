@@ -71,15 +71,27 @@ class MontyExecutor(BaseExecutor):
                 "json_loads": json.loads,
                 "json_dumps": json.dumps,
             }
-            if context:
-                # Add context functions if needed
-                pass
-                
+            
+            # Add context functions if provided
+            if context and "functions" in context:
+                ext_funcs.update(context["functions"])
+            
             logger.info(f"Executing Monty code:\n{code}")
             logger.info(f"External functions: {list(ext_funcs.keys())}")
             
+            # Prepare inputs (variables) for Monty
+            inputs = {}
+            if context and "inputs" in context:
+                inputs = context["inputs"]
+            
+            # Hack: Inject dummy input if empty to avoid pydantic-monty edge cases
+            # (None inputs -> TypeError, Empty inputs -> No variables declared error)
+            if not inputs:
+                inputs["__dummy_input__"] = True
+            
             mnt = Monty(
                 code=code,
+                inputs=list(inputs.keys()),
                 external_functions=list(ext_funcs.keys())
             )
             
@@ -140,6 +152,7 @@ class MontyExecutor(BaseExecutor):
             result = mnt.run(
                 print_callback=print_cb,
                 os=os_cb,
+                inputs=inputs if inputs else {},
                 external_functions=ext_funcs,
             )
             

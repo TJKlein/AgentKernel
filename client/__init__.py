@@ -13,6 +13,7 @@ Architecture:
 
 # Orchestration Layer
 from client.agent_helper import AgentHelper
+from client.recursive_agent import RecursiveAgent
 from client.task_manager import TaskManager # Async middleware
 from client.skill_manager import SkillManager # Skill management
 
@@ -52,6 +53,7 @@ from client.errors import (
 __all__ = [
     # Orchestration
     "AgentHelper",
+    "RecursiveAgent",
     "TaskManager",  # Async middleware
     "SkillManager",  # Skill management
     # Execution

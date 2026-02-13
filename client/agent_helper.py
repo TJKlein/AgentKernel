@@ -250,6 +250,7 @@ class AgentHelper:
         required_tools: Optional[Dict[str, List[str]]] = None,
         header_comment: Optional[str] = None,
         verbose: bool = True,
+        context: Optional[Dict[str, Any]] = None,
     ) -> tuple[Any, Optional[str], Optional[str]]:
         """Execute a task end-to-end: discover, select, generate, execute.
 
@@ -305,7 +306,7 @@ class AgentHelper:
             print("   " + "=" * 56)
             print("\n4. Executing code...")
 
-        result, output, error = self.executor.execute(code)
+        result, output, error = self.executor.execute(code, context=context)
 
         # Print results
         if verbose:
