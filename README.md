@@ -203,6 +203,54 @@ AZURE_OPENAI_ENDPOINT=...
 
 The test suite automatically loads `.env` and skips live tests if keys are missing.
 
+#### Optional Settings
+The `.env.example` also documents optional overrides you can copy into `.env` to tune execution:
+```ini
+OPENAI_MODEL_NAME=gpt-4o          # default model used when not specified in code
+AGENT_EXECUTION_TIMEOUT=30        # seconds before a generated program is killed
+AGENT_SANDBOX_TYPE=monty          # switch between `microsandbox` or `monty` backends
+```
+Use the Azure-specific values when targeting deployments behind `AZURE_OPENAI_ENDPOINT` instead of the public OpenAI API.
+
+#### Verify Your Workspace
+Before running live tests, run the new setup verifier:
+```bash
+python verify_setup.py
+```
+This script runs the same sanity checks that the CI relies on:
+
+1. Confirms Docker is installed and running.
+2. Warns if a global `msb` binary exists, since only the source-built `msbserver` supports volume mounts.
+3. Ensures the microsandbox server is running (and from the `target/release/msbserver` build).
+4. Validates `~/.microsandbox/namespaces/default/Sandboxfile` contains a `code-execution` sandbox with volume mappings.
+5. Attempts to mount a temporary directory into the sandbox to prove volume mounting works.
+
+The script exits with a non-zero status when any check fails, so you can fix the blocker before starting live tests.
+
+#### Optional Settings
+The `.env.example` also documents optional overrides you can copy into `.env` to tune execution:
+```ini
+OPENAI_MODEL_NAME=gpt-4o          # default model used when not specified in code
+AGENT_EXECUTION_TIMEOUT=30        # seconds before a generated program is killed
+AGENT_SANDBOX_TYPE=monty          # switch between `microsandbox` or `monty` backends
+```
+Use the Azure-specific values when targeting deployments behind `AZURE_OPENAI_ENDPOINT` instead of the public OpenAI API.
+
+#### Verify Your Workspace
+Before running live tests, run the new setup verifier:
+```bash
+python verify_setup.py
+```
+This script runs the same sanity checks that the CI relies on:
+
+1. Confirms Docker is installed and running.
+2. Warns if a global `msb` binary exists, since only the source-built `msbserver` supports volume mounts.
+3. Ensures the microsandbox server is running (and from the `target/release/msbserver` build).
+4. Validates `~/.microsandbox/namespaces/default/Sandboxfile` contains a `code-execution` sandbox with volume mappings.
+5. Attempts to mount a temporary directory into the sandbox to prove volume mounting works.
+
+The script exits with a non-zero status when any check fails, so you can fix the blocker before starting live tests.
+
 ## 7. Roadmap
 
 Our roadmap focuses on increasing the fidelity and speed of the execution substrate.
