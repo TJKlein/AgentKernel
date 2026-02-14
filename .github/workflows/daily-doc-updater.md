@@ -35,6 +35,8 @@ network:
   allowed:
     - defaults
     - github
+    - tk-mas28nfr-swedencentral.cognitiveservices.azure.com
+
 
 # 👇 THIS is where the Azure config setup goes
 steps:
