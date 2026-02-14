@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: 3a5e52960d95465d0c3c7aa22e8fa82be34e9f5e57fb32db25d30a3f6f703007
+# frontmatter-hash: ee7ae8870de130500fd1d3489b8144662d68ffe4c92fa0efab7f9becc357380f
 
 name: "Daily Documentation Updater"
 "on":
@@ -660,6 +660,7 @@ jobs:
           CODEX_API_KEY: ${{ secrets.CODEX_API_KEY || secrets.OPENAI_API_KEY }}
           CODEX_HOME: /tmp/gh-aw/mcp-config
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
+          GH_AW_MCP_LOG_DIR: ${{ runner.temp }}/gh-aw-mcp-logs
           GH_AW_MODEL_AGENT_CODEX: ${{ vars.GH_AW_MODEL_AGENT_CODEX || '' }}
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
@@ -995,6 +996,7 @@ jobs:
           CODEX_API_KEY: ${{ secrets.CODEX_API_KEY || secrets.OPENAI_API_KEY }}
           CODEX_HOME: /tmp/gh-aw/mcp-config
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
+          GH_AW_MCP_LOG_DIR: ${{ runner.temp }}/gh-aw-mcp-logs
           GH_AW_MODEL_DETECTION_CODEX: ${{ vars.GH_AW_MODEL_DETECTION_CODEX || '' }}
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}

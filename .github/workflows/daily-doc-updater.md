@@ -16,6 +16,7 @@ engine:
   id: codex
   env:
     AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+    GH_AW_MCP_LOG_DIR: ${{ runner.temp }}/gh-aw-mcp-logs
 strict: true
 
 network:
