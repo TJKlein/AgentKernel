@@ -4,8 +4,8 @@ description: Automatically reviews and updates documentation to ensure accuracy 
 on:
   schedule:
     # Every day at 6am UTC
-    - cron: "0 6 * * *"  workflow_dispatch:
-
+    - cron: "0 6 * * *"
+  workflow_dispatch:
 permissions:
   contents: read
   issues: read
