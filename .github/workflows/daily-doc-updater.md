@@ -1,22 +1,34 @@
 ---
 name: Daily Documentation Updater
 description: Automatically reviews and updates documentation to ensure accuracy and completeness
+
 on:
   schedule:
-    # Every day at 6am UTC
     - cron: "0 6 * * *"
   workflow_dispatch:
+
 permissions:
   contents: read
   issues: read
   pull-requests: read
 
 tracker-id: daily-doc-updater
+
 engine:
   id: codex
   env:
-    AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-    GH_AW_MCP_LOG_DIR: ${{ runner.temp }}/gh-aw-mcp-logs
+    # Required by gh-aw validation
+    OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+
+    # Force Codex to use Azure endpoint instead of api.openai.com
+    OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai
+
+    # Required for Azure preview API
+    OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
+
+    # Optional: explicitly tell it to use Responses API
+    OPENAI_API_TYPE: responses
+
 strict: true
 
 network:
@@ -24,40 +36,37 @@ network:
     - defaults
     - github
 
+# 👇 THIS is where the Azure config setup goes
+steps:
+  - name: Write Codex Azure config (user-scoped)
+    shell: bash
+    run: |
+      mkdir -p ~/.codex
 
-secret-masking:
-  steps:
-    - name: Fix permissions for gh-aw logs
-      run: |
-        sudo chmod -R a+rX /tmp/gh-aw || true
-        sudo chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+      cat > ~/.codex/config.toml <<'TOML'
+      model = "gpt-5.1-codex-mini"
+      model_provider = "azure"
 
+      [model_providers.azure]
+      name = "Azure OpenAI"
+      base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+      env_key = "AZURE_OPENAI_API_KEY"
+      wire_api = "responses"
+      query_params = { api-version = "2025-04-01-preview" }
+      TOML
 
+      # Trust workspace (prevents config from being ignored)
+      echo "" >> ~/.codex/config.toml
+      echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
+      echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
 
 safe-outputs:
   create-pull-request:
     expires: 1d
     title-prefix: "[docs] "
     labels: [documentation, automation]
-    reviewers: [copilot]
-    draft: false
-    auto-merge: true
-
-tools:
-  cache-memory: true
-  github:
-    toolsets: [default]
-  edit:
-  bash:
-    - "find docs -name '*.md' -o -name '*.mdx'"
-    - "find docs -maxdepth 1 -ls"
-    - "find docs -name '*.md' -exec cat {} +"
-    - "grep -r '*' docs"
-
-timeout-minutes: 45
 
 ---
-
 {{#runtime-import? .github/shared-instructions.md}}
 
 # Daily Documentation Updater
