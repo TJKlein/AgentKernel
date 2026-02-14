@@ -29,7 +29,7 @@ engine:
     # Optional: explicitly tell it to use Responses API
     OPENAI_API_TYPE: responses
 
-strict: true
+strict: false
 
 network:
   allowed:
