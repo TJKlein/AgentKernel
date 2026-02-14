@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: ee7ae8870de130500fd1d3489b8144662d68ffe4c92fa0efab7f9becc357380f
+# frontmatter-hash: 4b02266877908845f0922d7014b4b9aa996c28d0a2c4b6573cc5062bca34972a
 
 name: "Daily Documentation Updater"
 "on":
@@ -703,6 +703,11 @@ jobs:
           SECRET_GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}
           SECRET_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SECRET_OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      - name: Fix permissions for gh-aw logs
+        run: |
+          sudo chmod -R a+rX /tmp/gh-aw || true
+          sudo chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+          
       - name: Upload Safe Outputs
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0

@@ -24,6 +24,16 @@ network:
     - defaults
     - github
 
+
+secret-masking:
+  steps:
+    - name: Fix permissions for gh-aw logs
+      run: |
+        sudo chmod -R a+rX /tmp/gh-aw || true
+        sudo chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+
+
+
 safe-outputs:
   create-pull-request:
     expires: 1d
