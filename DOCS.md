@@ -229,6 +229,24 @@ export MICROSANDBOX_URL=http://localhost:5555
 export AGENTKERNEL_DISABLE_POOLING=true
 ```
 
+### Codex Azure Configuration
+
+AgentKernel supports using Codex via the Azure OpenAI endpoint. To configure the Azure deployment, create or update your Codex config file at `~/.codex/config.toml`:
+
+````toml
+model = "gpt-5.1-codex-mini"
+model_provider = "azure"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://<your-azure-endpoint>.openai.azure.com/openai"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+query_params = { api-version = "2025-04-01-preview" }
+````
+
+Ensure the `AZURE_OPENAI_API_KEY` environment variable is set to your Azure OpenAI key.
+
 ### Starting the Server
 
 #### Development Mode
