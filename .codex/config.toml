@@ -1,0 +1,10 @@
+model = "gpt-5.1-codex-mini"   # <-- MUST be your Azure *deployment name*
+model_provider = "azure"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+# If you're using the Azure preview style like your curl:
+query_params = { api-version = "2025-04-01-preview" }
