@@ -56,10 +56,10 @@ tools:
     toolsets: [default]
   edit:
   bash:
-    - "find specs -name '*.md'"
+    - "find scratchpad -name '*.md'"
+    - "find scratchpad -maxdepth 1 -ls"
     - "cat scratchpad/*.md"
-    - "find specs -maxdepth 1 -ls"
-    - "grep -r '*' specs"
+    - "grep -r '.' scratchpad"
     - "wc -l scratchpad/*.md"
 
 timeout-minutes: 30
