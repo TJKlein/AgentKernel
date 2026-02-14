@@ -16,12 +16,13 @@ tracker-id: daily-doc-updater
 
 engine:
   id: codex
+  model: gpt-5.1-codex-mini 
   env:
     # Required by gh-aw validation
     OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
     # Force Codex to use Azure endpoint instead of api.openai.com
-    OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai
+    OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai/v1
 
     # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
