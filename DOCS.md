@@ -735,6 +735,41 @@ agent.clear_tool_cache()
 
 ---
 
+## Documentation Automation
+
+### Daily Documentation Updater
+
+The `daily-doc-updater` workflow (`.github/workflows/daily-doc-updater.md`) runs every morning at 06:00 UTC. It scans merged pull requests and commits from the previous 24 hours, decides which parts of the code base need documentation, and uses the safe-outputs `create-pull-request` helper to publish `[docs]` updates. Before invoking the Codex engine it creates `/opt/gh-aw/safeoutputs/outputs.jsonl` (so an `agent-output` artifact exists even if the automation emits no PR) and chmods `/tmp/gh-aw` plus the host-mounted log directory so the gh-aw agent can write log files without hitting EACCES.
+
+The workflow runs with the `codex` engine configured for `gpt-5.1-codex-mini` but proxies every request through Azure OpenAI. It writes a user-scoped `~/.codex/config.toml` that trusts the workspace, and the workflow frontmatter sets `OPENAI_BASE_URL`, `OPENAI_QUERY_PARAMS`, and `OPENAI_API_TYPE` so Codex can reach the preview endpoint. `safe-outputs.create-pull-request` keeps the branch alive for 24 hours, labels it with `documentation` and `automation`, and prefixes every title with `[docs]`.
+
+### Developer Documentation Consolidator
+
+The developer documentation consolidator (`.github/workflows/developer-docs-consolidator.md`) runs daily at 03:17 UTC. It reads the markdown drafts stored in `scratchpad/`, standardizes tone and formatting using the Serena MCP static-analysis tool, and merges the cleaned content into `.github/agents/developer.instructions.agent.md`. Recent updates ensure the workflow scans `scratchpad/` instead of `specs/`, which keeps it aligned with the latest drafts, and it mirrors the same Azure Codex configuration steps as the updater so both automations share provider settings.
+
+The consolidator stores run metadata inside `/tmp/gh-aw/cache-memory/`, emits a discussion report via `safe-outputs.create-discussion`, and then opens a `[docs]` pull request that stays open for up to two days. To reach Azure OpenAI it relaxes the firewall (`strict: false`) and explicitly allows GitHub defaults plus `tk-mas28nfr-swedencentral.cognitiveservices.azure.com`.
+
+### Azure Codex Configuration (Shared by Both Workflows)
+
+The workflows both depend on the same Azure OpenAI settings, so the `daily-doc-updater` writes this trusted `~/.codex/config.toml` before any agent runs:
+
+```toml
+model = "gpt-5.1-codex-mini"
+model_provider = "azure"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+query_params = { api-version = "2025-04-01-preview" }
+
+[projects."$GITHUB_WORKSPACE"]
+trust_level = "trusted"
+```
+
+Both workflows also export `OPENAI_BASE_URL=https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai/v1`, `OPENAI_QUERY_PARAMS=api-version=2025-04-01-preview`, and `OPENAI_API_TYPE=responses` so calls are routed through the preview API. The repository must set `AZURE_OPENAI_API_KEY` as a secret, and the workflows depend on the safe-outputs helpers (including the `noop` requirement when there are no doc changes) to keep `/opt/gh-aw/safeoutputs/outputs.jsonl` and the `agent-output` artifact in place for auditing.
+
 ## API Reference
 
 ### `create_agent(config=None)`
