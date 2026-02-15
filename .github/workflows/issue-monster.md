@@ -53,6 +53,13 @@ steps:
       echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
       echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
 ---
+## Guardrails
+
+- Do NOT call `list_mcp_resources`, `list_mcp_resource_templates`, or attempt to inspect `/tmp/gh-aw/*` internals.
+- Do NOT try to read `$GITHUB_EVENT_PATH` or GitHub event payload files.
+- Use ONLY `${{ needs.search_issues.outputs.issue_list }}` / `${{ needs.search_issues.outputs.issue_numbers }}`.
+- If `${{ needs.search_issues.outputs.issue_count }}` is empty, missing, or `0`, immediately call safe-outputs `noop` and stop.
+
 
 {{#runtime-import? .github/shared-instructions.md}}
 
