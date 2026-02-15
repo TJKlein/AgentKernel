@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: e86265edd9927c15967460df3f3ab44222899f54320407c936970f64babb5377
+# frontmatter-hash: 445b21b83b1e81d2a5f12f4883cea98ef723d672cda70fa564c9a764bbd16b95
 
 name: "Daily Documentation Updater"
 "on":
@@ -99,6 +99,25 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Relax permissions on gh-aw MCP logs
+        run: |
+          echo "Fixing MCP log permissions (best effort)..."
+
+          if [ -d /tmp/gh-aw/mcp-logs ]; then
+            chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+            find /tmp/gh-aw/mcp-logs -type f -exec chmod a+r {} + || true
+          fi
+
+          if [ -f /tmp/gh-aw/mcp-logs/rpc-messages.jsonl ]; then
+            chmod a+r /tmp/gh-aw/mcp-logs/rpc-messages.jsonl || true
+          fi
+
+          if [ -f /tmp/gh-aw/mcp-logs/mcp-gateway.log ]; then
+            chmod a+r /tmp/gh-aw/mcp-logs/mcp-gateway.log || true
+          fi
+
+          echo "Done adjusting permissions."
+        shell: bash
       - name: Ensure agent-output file exists
         run: "mkdir -p /opt/gh-aw/safeoutputs || true\n: > /opt/gh-aw/safeoutputs/outputs.jsonl\n"
         shell: bash

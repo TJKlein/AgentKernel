@@ -48,6 +48,25 @@ network:
 
 # 👇 THIS is where the Azure config setup goes
 steps:
+  - name: Relax permissions on gh-aw MCP logs
+    shell: bash
+    run: |
+      echo "Fixing MCP log permissions (best effort)..."
+
+      if [ -d /tmp/gh-aw/mcp-logs ]; then
+        chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+        find /tmp/gh-aw/mcp-logs -type f -exec chmod a+r {} + || true
+      fi
+
+      if [ -f /tmp/gh-aw/mcp-logs/rpc-messages.jsonl ]; then
+        chmod a+r /tmp/gh-aw/mcp-logs/rpc-messages.jsonl || true
+      fi
+
+      if [ -f /tmp/gh-aw/mcp-logs/mcp-gateway.log ]; then
+        chmod a+r /tmp/gh-aw/mcp-logs/mcp-gateway.log || true
+      fi
+
+      echo "Done adjusting permissions."
   - name: Ensure agent-output file exists
     shell: bash
     run: |
