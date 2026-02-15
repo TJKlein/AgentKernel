@@ -48,6 +48,11 @@ network:
 
 # 👇 THIS is where the Azure config setup goes
 steps:
+  - name: Ensure agent-output file exists
+    shell: bash
+    run: |
+      mkdir -p /opt/gh-aw/safeoutputs || true
+      : > /opt/gh-aw/safeoutputs/outputs.jsonl
   - name: Fix permissions for gh-aw logs (host mount)
     shell: bash
     run: |
