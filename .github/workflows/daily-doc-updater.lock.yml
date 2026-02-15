@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: bbe8b69d6fd9dcce535bc9ea0428a500910a82af00e5e016805a0b130f789012
+# frontmatter-hash: e6b4a40fb6125829ba3ecd51268cb872290ed63714c789e51ba8d9eeab3677b7
 
 name: "Daily Documentation Updater"
 "on":
@@ -99,6 +99,13 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Fix permissions for gh-aw logs (host mount)
+        run: |
+          docker run --rm -v /tmp/gh-aw:/tmp/gh-aw alpine:3.20 sh -lc '
+            chmod -R a+rX /tmp/gh-aw || true
+            chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+          '
+        shell: bash
       - name: Write Codex Azure config (user-scoped)
         run: "mkdir -p ~/.codex\n\ncat > ~/.codex/config.toml <<'TOML'\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\n# Trust workspace (prevents config from being ignored)\necho \"\" >> ~/.codex/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> ~/.codex/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> ~/.codex/config.toml\n"
         shell: bash

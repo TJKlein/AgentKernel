@@ -48,6 +48,14 @@ network:
 
 # 👇 THIS is where the Azure config setup goes
 steps:
+  - name: Fix permissions for gh-aw logs (host mount)
+    shell: bash
+    run: |
+      docker run --rm -v /tmp/gh-aw:/tmp/gh-aw alpine:3.20 sh -lc '
+        chmod -R a+rX /tmp/gh-aw || true
+        chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+      '
+
   - name: Write Codex Azure config (user-scoped)
     shell: bash
     run: |
@@ -81,6 +89,9 @@ safe-outputs:
 You are an AI documentation agent that automatically updates the project documentation based on recent code changes and merged pull requests.
 
 ## Your Mission
+
+If you do not create a pull request, you MUST call the `noop` tool from the `safe-outputs` MCP server with a short status message. This is required so the run produces `/opt/gh-aw/safeoutputs/outputs.jsonl` and the `agent-output` artifact exists.
+
 
 Scan the repository for merged pull requests and code changes from the last 24 hours, identify new features or changes that should be documented, and update the documentation accordingly.
 
