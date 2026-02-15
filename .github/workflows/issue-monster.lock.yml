@@ -23,7 +23,7 @@
 #
 # The Cookie Monster of issues - assigns issues to Copilot agents one at a time
 #
-# frontmatter-hash: 2d1bf28052be855969062eb01fdaf399e573d46b593184cca8a57abfe1c18d35
+# frontmatter-hash: 4c4bb350135a0e2af6033bb723286cf3f4aa53ab5ff9e8f8cf901e47eff85149
 
 name: "Issue Monster"
 "on":
@@ -95,18 +95,8 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
-      - name: Ensure agent-output file exists
-        run: "mkdir -p /opt/gh-aw/safeoutputs || true\n: > /opt/gh-aw/safeoutputs/outputs.jsonl\n"
-        shell: bash
       - name: Write Codex Azure config (user-scoped)
-        run: "mkdir -p ~/.codex\n\ncat > ~/.codex/config.toml <<'TOML'\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\necho \"\" >> ~/.codex/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> ~/.codex/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> ~/.codex/config.toml\n"
-        shell: bash
-      - name: Relax permissions on gh-aw MCP logs
-        run: |-
-          if [ -d /tmp/gh-aw/mcp-logs ]; then
-            chmod -R a+rX /tmp/gh-aw/mcp-logs || true
-            find /tmp/gh-aw/mcp-logs -type f -exec chmod a+r {} + || true
-          fi
+        run: "mkdir -p ~/.codex\ncat > ~/.codex/config.toml <<'TOML'\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> ~/.codex/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> ~/.codex/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> ~/.codex/config.toml"
         shell: bash
 
       - name: Configure Git credentials
@@ -404,11 +394,10 @@ jobs:
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
-          OPENAI_API_TYPE: responses
+          OPENAI_API_TYPE: responses fi
           OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai/v1
           OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
           RUST_LOG: trace,hyper_util=info,mio=info,reqwest=info,os_info=info,codex_otel=warn,codex_core=debug,ocodex_exec=debug
-          run-failure: 🍪 Aww... [{workflow_name}]({run_url}) {status}. No cookie for monster today... 😢
       - name: Configure Git credentials
         env:
           REPO_NAME: ${{ github.repository }}

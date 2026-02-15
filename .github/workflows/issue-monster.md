@@ -20,16 +20,11 @@ engine:
   env:
     # Required by gh-aw validation
     OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-
-    # Force Codex to use Azure endpoint instead of api.openai.com
     OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai/v1
-
-    # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
-
-    # Optional: explicitly tell it to use Responses API
     OPENAI_API_TYPE: responses
-    run-failure: "🍪 Aww... [{workflow_name}]({run_url}) {status}. No cookie for monster today... 😢"
+      fi
+
 strict: false
 
 network:
@@ -39,23 +34,14 @@ network:
     - tk-mas28nfr-swedencentral.cognitiveservices.azure.com
 
 timeout-minutes: 30
-
 steps:
-  - name: Ensure agent-output file exists
-    shell: bash
-    run: |
-      mkdir -p /opt/gh-aw/safeoutputs || true
-      : > /opt/gh-aw/safeoutputs/outputs.jsonl
-
   - name: Write Codex Azure config (user-scoped)
     shell: bash
     run: |
       mkdir -p ~/.codex
-
       cat > ~/.codex/config.toml <<'TOML'
       model = "gpt-5.1-codex-mini"
       model_provider = "azure"
-
       [model_providers.azure]
       name = "Azure OpenAI"
       base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
@@ -63,18 +49,9 @@ steps:
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
       TOML
-
       echo "" >> ~/.codex/config.toml
       echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
       echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
-
-  - name: Relax permissions on gh-aw MCP logs
-    shell: bash
-    run: |
-      if [ -d /tmp/gh-aw/mcp-logs ]; then
-        chmod -R a+rX /tmp/gh-aw/mcp-logs || true
-        find /tmp/gh-aw/mcp-logs -type f -exec chmod a+r {} + || true
-      fi
 ---
 
 {{#runtime-import? .github/shared-instructions.md}}
