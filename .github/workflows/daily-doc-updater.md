@@ -32,6 +32,13 @@ engine:
 
 strict: false
 
+secret-masking:
+  steps:
+    - name: Fix permissions for gh-aw logs
+      run: |
+        chmod -R a+rX /tmp/gh-aw || true
+        chmod -R a+rX /tmp/gh-aw/mcp-logs || true
+
 network:
   allowed:
     - defaults
@@ -68,7 +75,6 @@ safe-outputs:
     expires: 1d
     title-prefix: "[docs] "
     labels: [documentation, automation]
-
 ---
 {{#runtime-import? .github/shared-instructions.md}}
 
@@ -226,6 +232,10 @@ This PR updates the documentation based on features merged in the last 24 hours.
 - **Use Proper Format**: Use the correct Diátaxis category and Astro Starlight syntax
 - **Link References**: Include links to relevant PRs and issues where appropriate
 - **Test Understanding**: If unsure about a feature, review the code changes in detail
+
+## Safe Output Requirement
+
+If you do not create a pull request, you MUST call the `noop` tool from the safe-outputs MCP server with a short status message so the workflow produces an output artifact.
 
 ## Important Notes
 
