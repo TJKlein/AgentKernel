@@ -46,7 +46,7 @@ steps:
       model_provider = "azure"
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "${AZURE_OPENAI_ENDPOINT}/openai"
+      base_url = "${AZURE_OPENAI_ENDPOINT}openai"
       env_key = "AZURE_OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
@@ -55,6 +55,13 @@ steps:
       echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
       echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
 ---
+## Guardrails
+
+- Do NOT call `list_mcp_resources`, `list_mcp_resource_templates`, or attempt to inspect `/tmp/gh-aw/*` internals.
+- Do NOT try to read `$GITHUB_EVENT_PATH` or GitHub event payload files.
+- Use ONLY `${{ needs.search_issues.outputs.issue_list }}` / `${{ needs.search_issues.outputs.issue_numbers }}`.
+- If `${{ needs.search_issues.outputs.issue_count }}` is empty, missing, or `0`, immediately call safe-outputs `noop` and stop.
+
 ## Guardrails
 
 - Do NOT call `list_mcp_resources`, `list_mcp_resource_templates`, or attempt to inspect `/tmp/gh-aw/*` internals.

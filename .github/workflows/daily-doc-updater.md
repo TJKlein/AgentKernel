@@ -22,13 +22,14 @@ engine:
     OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
     # Force Codex to use Azure endpoint instead of api.openai.com
-    OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}/openai/v1
+    OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1
 
     # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
 
-    # Optional: explicitly tell it to use Responses API
-    OPENAI_API_TYPE: responses
+    # Optional: explicitly tell it to use Azure API type
+    OPENAI_API_TYPE: azure
+    OPENAI_API_VERSION: 2025-04-01-preview
 
 strict: false
 
@@ -93,7 +94,7 @@ steps:
 
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "${AZURE_OPENAI_ENDPOINT}/openai"
+      base_url = "${AZURE_OPENAI_ENDPOINT}openai"
       env_key = "AZURE_OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
