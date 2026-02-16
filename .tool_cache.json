@@ -16,9 +16,9 @@
       "tool": "calculate"
     },
     "calculator.multiply": {
-      "description": "calculator multiply: Multiply two numbers together.",
-      "hash": "a4ef6758b23208f16c279f5c5eb954b0",
-      "path": "/Users/d065243/code-execution-mcp/servers/calculator/multiply.py",
+      "description": "calculator multiply: Multiply two numbers.\n\nArgs:\n    a: First number\n    b: Second number\n    \nReturns:\n    Product of a and b",
+      "hash": "ba07871bc270f2928894a5900d53847c",
+      "path": "/Users/d065243/Downloads/AgentKernel/servers/calculator/multiply.py",
       "server": "calculator",
       "tool": "multiply"
     },

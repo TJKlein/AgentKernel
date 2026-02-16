@@ -1,10 +1,17 @@
 import os
 from openai import AzureOpenAI
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 # Make sure these environment variables are set:
-AZURE_OPENAI_ENDPOINT="https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/"
-AZURE_OPENAI_API_KEY="CYamzNccVrS1qFtIr0gBLDn8MkpEk9wlpNZ6mVEOu38CIyTdkgV6JQQJ99BKACfhMk5XJ3w3AAAAACOGo1wb"
-AZURE_OPENAI_API_VERSION="2025-01-01-preview"
+AZURE_OPENAI_ENDPOINT = os.environ.get("AZURE_OPENAI_ENDPOINT")
+AZURE_OPENAI_API_KEY = os.environ.get("AZURE_OPENAI_API_KEY")
+AZURE_OPENAI_API_VERSION = os.environ.get("AZURE_OPENAI_API_VERSION")
+
+if not all([AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_API_KEY, AZURE_OPENAI_API_VERSION]):
+    raise ValueError("Missing Azure OpenAI configuration in .env file")
 
 client = AzureOpenAI(
     api_key=AZURE_OPENAI_API_KEY,
@@ -13,7 +20,7 @@ client = AzureOpenAI(
 )
 
 # Try a simple test prompt using your deployment
-deployment_name = "gpt-5.1-codex-mini"
+deployment_name = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME", "gpt-5.1-codex-mini")
 
 response = client.chat.completions.create(
     model=deployment_name,
