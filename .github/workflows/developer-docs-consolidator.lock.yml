@@ -27,7 +27,7 @@
 #   Imports:
 #     - shared/reporting.md
 #
-# frontmatter-hash: 71b731dbcb648e0ba5afd8dfe2d5e6cfd205f8cea59e5c2bd91fef7562418cb5
+# frontmatter-hash: cd8b18bab392cd5475db63f48e3dfa7bf1aa8cfa0897489b4f097008e8d2eb07
 
 name: "Developer Documentation Consolidator"
 "on":
@@ -757,7 +757,7 @@ jobs:
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GH_AW_SAFE_OUTPUTS: ${{ env.GH_AW_SAFE_OUTPUTS }}
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
-          OPENAI_API_TYPE: azure
+          OPENAI_API_TYPE: responses
           OPENAI_API_VERSION: 2025-04-01-preview
           OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
           RUST_LOG: trace,hyper_util=info,mio=info,reqwest=info,os_info=info,codex_otel=warn,codex_core=debug,ocodex_exec=debug
@@ -1089,7 +1089,7 @@ jobs:
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
-          OPENAI_API_TYPE: azure
+          OPENAI_API_TYPE: responses
           OPENAI_API_VERSION: 2025-04-01-preview
           OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
           RUST_LOG: trace,hyper_util=info,mio=info,reqwest=info,os_info=info,codex_otel=warn,codex_core=debug,ocodex_exec=debug

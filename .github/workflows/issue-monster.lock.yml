@@ -23,7 +23,7 @@
 #
 # The Cookie Monster of issues - assigns issues to Copilot agents one at a time
 #
-# frontmatter-hash: 5fe089fdebb589d0b965c2fecf2d7c78c94ce62626c6f06510e0a69b31f19091
+# frontmatter-hash: 68e0e8da5043ec0fa33a4fbf03cdb1f7f2504031c2b523c46f05676386ada1e6
 
 name: "Issue Monster"
 "on":
@@ -396,7 +396,8 @@ jobs:
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
-          OPENAI_API_TYPE: responses fi
+          OPENAI_API_TYPE: responses
+          OPENAI_API_VERSION: 2025-04-01-preview
           OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
           RUST_LOG: trace,hyper_util=info,mio=info,reqwest=info,os_info=info,codex_otel=warn,codex_core=debug,ocodex_exec=debug
       - name: Configure Git credentials

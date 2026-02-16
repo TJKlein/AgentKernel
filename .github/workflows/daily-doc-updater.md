@@ -27,8 +27,8 @@ engine:
     # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
 
-    # Optional: explicitly tell it to use Azure API type
-    OPENAI_API_TYPE: azure
+    # Optional: explicitly tell it to use Responses API
+    OPENAI_API_TYPE: responses
     OPENAI_API_VERSION: 2025-04-01-preview
 
 strict: false

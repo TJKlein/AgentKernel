@@ -20,10 +20,10 @@ engine:
   env:
     # Required by gh-aw validation
     OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
-    OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}/openai/v1
+    OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
     OPENAI_API_TYPE: responses
-      fi
+    OPENAI_API_VERSION: 2025-04-01-preview
 
 strict: false
 
