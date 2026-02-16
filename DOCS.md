@@ -735,6 +735,51 @@ agent.clear_tool_cache()
 
 ---
 
+## GitHub Agentic Workflows
+
+AgentKernel ships GitHub-hosted `gh-aw` workflows that keep issues and documentation aligned with the latest activity. Each workflow runs Codex via the Azure OpenAI endpoint, writes a user-scoped `~/.codex/config.toml`, and uses `safe-outputs` helpers to publish structured artifacts when work is completed.
+
+### Issue Monster
+
+- **Purpose**: Every hour, process a prefiltered, prioritized list of issues and assign up to three Copilot agents to work on clearly separated topics.
+- **Filtering**: Only open issues with the `cookie` label are considered; issues with `wontfix`, `duplicate`, `invalid`, `question`, `discussion`, `needs-discussion`, `blocked`, `on-hold`, `waiting-for-feedback`, `needs-more-info`, `no-bot`, `no-campaign`, or any `campaign:*` label are excluded. Assigned or sub-issues with sibling PRs are skipped, and priority is driven by a scoring system (bug/security/docs/enhancement labels, age bonus, etc.).
+- **Execution rules**: The workflow reads issue metadata supplied by the preparatory search job, avoids duplicate topics, assigns Copilot with `safeoutputs/assign_to_agent`, and leaves a friendly comment via `safeoutputs/add_comment`. If nothing remains to assign, it calls `safeoutputs/noop` so that the run still emits an artifact.
+
+### Developer Documentation Consolidator
+
+- **Purpose**: Daily (around 03:17 UTC) it reviews every markdown file under `scratchpad/`, enforces a neutral technical tone via Serena static analysis, and consolidates the curated content into `.github/agents/developer.instructions.agent.md`.
+- **Process**: The workflow catalogs each spec, flags tone/formatting issues, adds language-tagged code blocks or Mermaid diagrams when helpful, and merges the cleaned content into the consolidated instructions file. Cache memory at `/tmp/gh-aw/cache-memory/` preserves previous runs so Serena can report trends.
+- **Output**: It publishes a discussion summary (`safeoutputs/create-discussion`) and creates a documentation pull request (`safeoutputs/create-pull-request`) that bundles the consolidated instructions plus any tone/formatting fixes.
+
+### Daily Documentation Updater
+
+- **Purpose**: Triggered every day at 06:00 UTC, this workflow scans the last 24 hours of merged pull requests and commits, identifies user-facing changes (new features, workflow updates, breaking changes), and updates the public documentation accordingly.
+- **Key steps**: It searches for merged PRs, reviews recent commits with `list_commits`, inspects notable diffs, and determines which documentation sections require updates. Before editing, it attempts to read `.github/instructions/documentation.instructions.md`; if the file is missing, documenters should note that the canonical guidelines are unavailable.
+- **Output rules**: After editing, it creates a pull request via `safeoutputs/create-pull-request` using the prescribed template. If there are no documentation changes, it must still call `safeoutputs/noop` with a short status message so `/opt/gh-aw/safeoutputs/outputs.jsonl` exists and the automation can finish cleanly.
+
+### Azure Codex Configuration for Workflows
+
+Each of the workflows above drops a `~/.codex/config.toml` so that Codex targets the Azure OpenAI endpoint with `gpt-5.1-codex-mini`. The configuration looks like this:
+
+````aw
+model = "gpt-5.1-codex-mini"
+model_provider = "azure"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+query_params = { api-version = "2025-04-01-preview" }
+
+[projects."${GITHUB_WORKSPACE}"]
+trust_level = "trusted"
+````
+
+Workflow steps also ensure `/opt/gh-aw/safeoutputs/outputs.jsonl` exists, relax permissions on `/tmp/gh-aw/mcp-logs`, and trust the workspace so that the config is honored on subsequent runs.
+
+---
+
 ## API Reference
 
 ### `create_agent(config=None)`
