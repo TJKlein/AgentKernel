@@ -53,7 +53,9 @@ steps:
     shell: bash
     run: |
       echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+      echo "OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
       echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+      echo "AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
 
   - name: Relax permissions on gh-aw MCP logs
     shell: bash
@@ -100,8 +102,8 @@ steps:
 
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "\${AZURE_OPENAI_ENDPOINT}openai"
-      env_key = "AZURE_OPENAI_API_KEY"
+      base_url = "${AZURE_OPENAI_ENDPOINT}openai"
+      env_key = "OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
       TOML
