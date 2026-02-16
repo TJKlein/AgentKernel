@@ -22,7 +22,7 @@ engine:
     OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
     # Force Codex to use Azure endpoint instead of api.openai.com
-    OPENAI_BASE_URL: https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai/v1
+    OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}/openai/v1
 
     # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
@@ -43,7 +43,7 @@ network:
   allowed:
     - defaults
     - github
-    - tk-mas28nfr-swedencentral.cognitiveservices.azure.com
+    - '*.cognitiveservices.azure.com'
 
 
 # 👇 THIS is where the Azure config setup goes
@@ -82,16 +82,18 @@ steps:
 
   - name: Write Codex Azure config (user-scoped)
     shell: bash
+    env:
+      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
     run: |
       mkdir -p ~/.codex
 
-      cat > ~/.codex/config.toml <<'TOML'
+      cat > ~/.codex/config.toml <<TOML
       model = "gpt-5.1-codex-mini"
       model_provider = "azure"
 
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+      base_url = "${AZURE_OPENAI_ENDPOINT}/openai"
       env_key = "AZURE_OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
