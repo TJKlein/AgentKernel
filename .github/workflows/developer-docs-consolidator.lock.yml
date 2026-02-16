@@ -27,7 +27,7 @@
 #   Imports:
 #     - shared/reporting.md
 #
-# frontmatter-hash: cd8b18bab392cd5475db63f48e3dfa7bf1aa8cfa0897489b4f097008e8d2eb07
+# frontmatter-hash: 5aac12fed0d05fc0a5f0582386942e67cf5e3519fbae7099d0e59d42f95cf55d
 
 name: "Developer Documentation Consolidator"
 "on":
@@ -105,6 +105,17 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Set Azure Endpoint
+        run: |
+          echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+        shell: bash
+      - env:
+          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
+        name: Write Codex Azure config (user-scoped)
+        run: "mkdir -p /tmp/gh-aw/mcp-config\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"\\${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
+        shell: bash
+
       # Cache memory file share configuration from frontmatter processed below
       - name: Create cache-memory directory
         run: bash /opt/gh-aw/actions/create_cache_memory_dir.sh
@@ -791,7 +802,8 @@ jobs:
             const { main } = require('/opt/gh-aw/actions/redact_secrets.cjs');
             await main();
         env:
-          GH_AW_SECRET_NAMES: 'CODEX_API_KEY,GH_AW_GITHUB_MCP_SERVER_TOKEN,GH_AW_GITHUB_TOKEN,GITHUB_TOKEN,OPENAI_API_KEY'
+          GH_AW_SECRET_NAMES: 'AZURE_OPENAI_ENDPOINT,CODEX_API_KEY,GH_AW_GITHUB_MCP_SERVER_TOKEN,GH_AW_GITHUB_TOKEN,GITHUB_TOKEN,OPENAI_API_KEY'
+          SECRET_AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
           SECRET_CODEX_API_KEY: ${{ secrets.CODEX_API_KEY }}
           SECRET_GH_AW_GITHUB_MCP_SERVER_TOKEN: ${{ secrets.GH_AW_GITHUB_MCP_SERVER_TOKEN }}
           SECRET_GH_AW_GITHUB_TOKEN: ${{ secrets.GH_AW_GITHUB_TOKEN }}

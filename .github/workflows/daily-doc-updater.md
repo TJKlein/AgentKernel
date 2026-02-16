@@ -49,6 +49,12 @@ network:
 
 # 👇 THIS is where the Azure config setup goes
 steps:
+  - name: Set Azure Endpoint
+    shell: bash
+    run: |
+      echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+      echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+
   - name: Relax permissions on gh-aw MCP logs
     shell: bash
     run: |
@@ -86,24 +92,24 @@ steps:
     env:
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
     run: |
-      mkdir -p ~/.codex
+      mkdir -p /tmp/gh-aw/mcp-config
 
-      cat > ~/.codex/config.toml <<TOML
+      cat > /tmp/gh-aw/mcp-config/config.toml <<TOML
       model = "gpt-5.1-codex-mini"
       model_provider = "azure"
 
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "${AZURE_OPENAI_ENDPOINT}openai"
+      base_url = "\${AZURE_OPENAI_ENDPOINT}openai"
       env_key = "AZURE_OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
       TOML
 
       # Trust workspace (prevents config from being ignored)
-      echo "" >> ~/.codex/config.toml
-      echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
-      echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
+      echo "" >> /tmp/gh-aw/mcp-config/config.toml
+      echo "[projects.\"$GITHUB_WORKSPACE\"]" >> /tmp/gh-aw/mcp-config/config.toml
+      echo "trust_level = \"trusted\"" >> /tmp/gh-aw/mcp-config/config.toml
 
 safe-outputs:
   create-pull-request:

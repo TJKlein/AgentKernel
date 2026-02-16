@@ -23,7 +23,7 @@
 #
 # The Cookie Monster of issues - assigns issues to Copilot agents one at a time
 #
-# frontmatter-hash: 68e0e8da5043ec0fa33a4fbf03cdb1f7f2504031c2b523c46f05676386ada1e6
+# frontmatter-hash: ee2950fa244a2c6761cf88b7e3678843649f7b58549ffe92acd6ae4d564524b6
 
 name: "Issue Monster"
 "on":
@@ -95,10 +95,15 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Set Azure Endpoint
+        run: |
+          echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+        shell: bash
       - env:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
         name: Write Codex Azure config (user-scoped)
-        run: "mkdir -p ~/.codex\ncat > ~/.codex/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> ~/.codex/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> ~/.codex/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> ~/.codex/config.toml"
+        run: "mkdir -p /tmp/gh-aw/mcp-config\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml"
         shell: bash
 
       - name: Configure Git credentials

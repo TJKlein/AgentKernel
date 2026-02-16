@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: f3b43c6b6e7adcf09556263176146b098b006eaa3cef5141054af6728f5c068c
+# frontmatter-hash: fb09e58bb8d3d329debceb833bf93b475805b40547fe2deaa0b14cb7977b1c9e
 
 name: "Daily Documentation Updater"
 "on":
@@ -99,6 +99,11 @@ jobs:
           persist-credentials: false
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
+      - name: Set Azure Endpoint
+        run: |
+          echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+        shell: bash
       - name: Relax permissions on gh-aw MCP logs
         run: |
           echo "Fixing MCP log permissions (best effort)..."
@@ -131,7 +136,7 @@ jobs:
       - env:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
         name: Write Codex Azure config (user-scoped)
-        run: "mkdir -p ~/.codex\n\ncat > ~/.codex/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\n# Trust workspace (prevents config from being ignored)\necho \"\" >> ~/.codex/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> ~/.codex/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> ~/.codex/config.toml\n"
+        run: "mkdir -p /tmp/gh-aw/mcp-config\n\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"\\${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"AZURE_OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\n# Trust workspace (prevents config from being ignored)\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
         shell: bash
 
       - name: Configure Git credentials

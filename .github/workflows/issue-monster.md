@@ -35,13 +35,19 @@ network:
 
 timeout-minutes: 30
 steps:
+  - name: Set Azure Endpoint
+    shell: bash
+    run: |
+      echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+      echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+
   - name: Write Codex Azure config (user-scoped)
     shell: bash
     env:
       AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
     run: |
-      mkdir -p ~/.codex
-      cat > ~/.codex/config.toml <<TOML
+      mkdir -p /tmp/gh-aw/mcp-config
+      cat > /tmp/gh-aw/mcp-config/config.toml <<TOML
       model = "gpt-5.1-codex-mini"
       model_provider = "azure"
       [model_providers.azure]
@@ -51,9 +57,9 @@ steps:
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
       TOML
-      echo "" >> ~/.codex/config.toml
-      echo "[projects.\"$GITHUB_WORKSPACE\"]" >> ~/.codex/config.toml
-      echo "trust_level = \"trusted\"" >> ~/.codex/config.toml
+      echo "" >> /tmp/gh-aw/mcp-config/config.toml
+      echo "[projects.\"$GITHUB_WORKSPACE\"]" >> /tmp/gh-aw/mcp-config/config.toml
+      echo "trust_level = \"trusted\"" >> /tmp/gh-aw/mcp-config/config.toml
 ---
 ## Guardrails
 
