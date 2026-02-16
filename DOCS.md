@@ -767,7 +767,7 @@ model_provider = "azure"
 
 [model_providers.azure]
 name = "Azure OpenAI"
-base_url = "https://tk-mas28nfr-swedencentral.cognitiveservices.azure.com/openai"
+base_url = "https://your-resource.openai.azure.com/openai"
 env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
 query_params = { api-version = "2025-04-01-preview" }
