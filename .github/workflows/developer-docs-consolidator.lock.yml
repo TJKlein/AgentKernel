@@ -27,7 +27,7 @@
 #   Imports:
 #     - shared/reporting.md
 #
-# frontmatter-hash: d77c9d3818498d4713b91004277565ec959ce6b7d76984806f9ff079614cde99
+# frontmatter-hash: ac7650f3054dd133fb7ad7b37a421e5aa7c754c2841a6d34b592d6c460edbaa8
 
 name: "Developer Documentation Consolidator"
 "on":
@@ -106,7 +106,11 @@ jobs:
       - name: Create gh-aw temp directory
         run: bash /opt/gh-aw/actions/create_gh_aw_tmp_dir.sh
       - name: Set Azure Endpoint
-        run: "# Force Azure endpoint and key globally\necho \"OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1\" >> $GITHUB_ENV\necho \"OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}\" >> $GITHUB_ENV\necho \"AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}\" >> $GITHUB_ENV\necho \"AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}\" >> $GITHUB_ENV\n"
+        run: |
+          echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
+          echo "OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
+          echo "AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
         shell: bash
       - env:
           AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
