@@ -19,10 +19,10 @@ engine:
   model: gpt-5.1-codex-mini
   env:
     # Required by gh-aw validation
-    OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
-    OPENAI_API_TYPE: responses
+    OPENAI_API_TYPE: azure
     OPENAI_API_VERSION: 2025-04-01-preview
 
 strict: false

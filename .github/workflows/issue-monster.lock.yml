@@ -23,7 +23,7 @@
 #
 # The Cookie Monster of issues - assigns issues to Copilot agents one at a time
 #
-# frontmatter-hash: f885d4ac369c25a7737e8aa649da1311e98ab6c81f9aa0d1d14f5f1a709bedad
+# frontmatter-hash: 72eec9968356a2a2dead117bec9c2c92c7dcadb6794c3bcc5e042c39e9f998be
 
 name: "Issue Monster"
 "on":
@@ -403,7 +403,8 @@ jobs:
           GH_AW_MCP_CONFIG: /tmp/gh-aw/mcp-config/config.toml
           GH_AW_PROMPT: /tmp/gh-aw/aw-prompts/prompt.txt
           GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
-          OPENAI_API_TYPE: responses
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_API_TYPE: azure
           OPENAI_API_VERSION: 2025-04-01-preview
           OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
           RUST_LOG: trace,hyper_util=info,mio=info,reqwest=info,os_info=info,codex_otel=warn,codex_core=debug,ocodex_exec=debug

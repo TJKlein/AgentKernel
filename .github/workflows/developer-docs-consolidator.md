@@ -18,7 +18,7 @@ engine:
   model: gpt-5.1-codex-mini 
   env:
     # Required by gh-aw validation
-    OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
     # Force Codex to use Azure endpoint instead of api.openai.com
     OPENAI_BASE_URL: ${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1
@@ -26,8 +26,8 @@ engine:
     # Required for Azure preview API
     OPENAI_QUERY_PARAMS: api-version=2025-04-01-preview
 
-    # Optional: explicitly tell it to use Responses API
-    OPENAI_API_TYPE: responses
+    # Optional: explicitly tell it to use Azure API type
+    OPENAI_API_TYPE: azure
     OPENAI_API_VERSION: 2025-04-01-preview
 
 strict: false
