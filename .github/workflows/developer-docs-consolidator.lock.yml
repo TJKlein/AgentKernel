@@ -27,13 +27,12 @@
 #   Imports:
 #     - shared/reporting.md
 #
-# frontmatter-hash: 8245d64b560f597632724e7f8790495fd59279482b545c9183ae386d436e4103
+# frontmatter-hash: 2bce4e4dc35d0d96f1efa0c2593f383b2d3858c4a1e41dd871ca57e9b7143c6d
 
 name: "Developer Documentation Consolidator"
 "on":
   schedule:
-  - cron: "48 14 * * *"
-    # Friendly format: daily (scattered)
+  - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions: {}

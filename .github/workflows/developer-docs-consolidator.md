@@ -3,8 +3,7 @@ name: Developer Documentation Consolidator
 description: Consolidates and organizes developer documentation from multiple sources into a unified, searchable knowledge base
 on:
   schedule:
-    # Run daily at 3:17 AM UTC (random time to distribute load)
-    - cron: daily
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
