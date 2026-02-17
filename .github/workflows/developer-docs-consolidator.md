@@ -63,8 +63,9 @@ steps:
   - name: Set Azure Endpoint
     shell: bash
     run: |
+      # Force Azure endpoint and key globally
       echo "OPENAI_BASE_URL=${{ secrets.AZURE_OPENAI_ENDPOINT }}openai/v1" >> $GITHUB_ENV
-      echo "OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
+      echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> $GITHUB_ENV
       echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
       echo "AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
 
@@ -141,7 +142,7 @@ If there's a previous run's data, load it to understand historical context:
 Find all `.md` files in the `scratchpad/` directory:
 
 ```bash
-find specs -name "*.md"
+find scratchpad -name "*.md"
 ```
 
 ### 2. Read and Catalog Files
