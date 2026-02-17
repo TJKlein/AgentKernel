@@ -23,7 +23,7 @@
 #
 # Automatically reviews and updates documentation to ensure accuracy and completeness
 #
-# frontmatter-hash: 7a4a0445663a15a9671fe63b402f1b0e456a9347ea2194384c161993ead78894
+# frontmatter-hash: 960a5f55077c279bc59603e3c07c14d2392c56735275ad4b56378f1c2a2ac470
 
 name: "Daily Documentation Updater"
 "on":
@@ -135,10 +135,8 @@ jobs:
             chmod -R a+rX /tmp/gh-aw/mcp-logs || true
           '
         shell: bash
-      - env:
-          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-        name: Write Codex Azure config (user-scoped)
-        run: "mkdir -p /tmp/gh-aw/mcp-config\n\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\n# Trust workspace (prevents config from being ignored)\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
+      - name: Write Codex Azure config (user-scoped)
+        run: "mkdir -p /tmp/gh-aw/mcp-config\n\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${{ secrets.AZURE_OPENAI_ENDPOINT }}openai\"\nenv_key = \"OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\n\n# Trust workspace (prevents config from being ignored)\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
         shell: bash
 
       - name: Configure Git credentials

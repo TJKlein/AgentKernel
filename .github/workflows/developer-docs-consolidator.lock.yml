@@ -27,7 +27,7 @@
 #   Imports:
 #     - shared/reporting.md
 #
-# frontmatter-hash: ac7650f3054dd133fb7ad7b37a421e5aa7c754c2841a6d34b592d6c460edbaa8
+# frontmatter-hash: 8245d64b560f597632724e7f8790495fd59279482b545c9183ae386d436e4103
 
 name: "Developer Documentation Consolidator"
 "on":
@@ -112,10 +112,8 @@ jobs:
           echo "AZURE_OPENAI_ENDPOINT=${{ secrets.AZURE_OPENAI_ENDPOINT }}" >> $GITHUB_ENV
           echo "AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> $GITHUB_ENV
         shell: bash
-      - env:
-          AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
-        name: Write Codex Azure config (user-scoped)
-        run: "mkdir -p /tmp/gh-aw/mcp-config\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${AZURE_OPENAI_ENDPOINT}openai\"\nenv_key = \"OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
+      - name: Write Codex Azure config (user-scoped)
+        run: "mkdir -p /tmp/gh-aw/mcp-config\ncat > /tmp/gh-aw/mcp-config/config.toml <<TOML\nmodel = \"gpt-5.1-codex-mini\"\nmodel_provider = \"azure\"\n[model_providers.azure]\nname = \"Azure OpenAI\"\nbase_url = \"${{ secrets.AZURE_OPENAI_ENDPOINT }}openai\"\nenv_key = \"OPENAI_API_KEY\"\nwire_api = \"responses\"\nquery_params = { api-version = \"2025-04-01-preview\" }\nTOML\necho \"\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"[projects.\\\"$GITHUB_WORKSPACE\\\"]\" >> /tmp/gh-aw/mcp-config/config.toml\necho \"trust_level = \\\"trusted\\\"\" >> /tmp/gh-aw/mcp-config/config.toml\n"
         shell: bash
 
       # Cache memory file share configuration from frontmatter processed below

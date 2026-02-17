@@ -85,8 +85,6 @@ steps:
 
   - name: Write Codex Azure config (user-scoped)
     shell: bash
-    env:
-      AZURE_OPENAI_ENDPOINT: ${{ secrets.AZURE_OPENAI_ENDPOINT }}
     run: |
       mkdir -p /tmp/gh-aw/mcp-config
 
@@ -96,7 +94,7 @@ steps:
 
       [model_providers.azure]
       name = "Azure OpenAI"
-      base_url = "${AZURE_OPENAI_ENDPOINT}openai"
+      base_url = "${{ secrets.AZURE_OPENAI_ENDPOINT }}openai"
       env_key = "OPENAI_API_KEY"
       wire_api = "responses"
       query_params = { api-version = "2025-04-01-preview" }
