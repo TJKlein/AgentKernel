@@ -341,7 +341,7 @@ Before running examples, verify your setup:
 source .venv/bin/activate
 
 # Check if all packages are installed
-python check_setup.py
+python scripts/check_setup.py
 ```
 
 If any packages are missing, install them:

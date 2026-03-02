@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import os
+from pathlib import Path
 
 def run_example(script_name, env_vars=None):
     print(f"\nExample: {script_name}")
@@ -16,7 +17,7 @@ def run_example(script_name, env_vars=None):
     try:
         result = subprocess.run(
             cmd, 
-            cwd=os.path.dirname(os.path.abspath(__file__)),
+            cwd=str(Path(__file__).resolve().parent.parent),
             env=env,
             capture_output=True,
             text=True

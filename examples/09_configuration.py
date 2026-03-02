@@ -29,8 +29,8 @@ def main() -> None:
     agent = create_agent(
         llm_enabled=True,
         llm_provider="azure_openai",
-        llm_azure_endpoint="https://your-resource.openai.azure.com",
-        llm_api_key="your_api_key_here",  # Or use env var
+        llm_azure_endpoint="https://your-resource.cognitiveservices.azure.com/",
+        llm_api_key="your-api-key-here",  # Prefer OPENAI_API_KEY / AZURE_OPENAI_API_KEY env
         llm_azure_deployment="gpt-4o-mini",
         llm_temperature=0.3,
         llm_max_tokens=2000,
@@ -73,7 +73,7 @@ def main() -> None:
         llm_enabled=True,
         llm_provider="openai",
         llm_model="gpt-4o-mini",
-        llm_api_key="your_key",  # Or use OPENAI_API_KEY env var
+        llm_api_key="your-api-key-here",  # Prefer OPENAI_API_KEY env
         state_enabled=True,
         state_file="workflow_state.json",
         state_auto_save=True,

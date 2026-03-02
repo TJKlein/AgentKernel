@@ -5,19 +5,16 @@ from client.monty_executor import MontyExecutor
 from client.filesystem_helpers import FilesystemHelper
 from client.base import ExecutionResult
 
-# Skip if Monty or keys missing
 try:
     import pydantic_monty
-    HAS_MONTY = True
 except ImportError:
-    HAS_MONTY = False
+    pydantic_monty = None  # type: ignore
 
 @pytest.mark.live
-@pytest.mark.skipif(not HAS_MONTY, reason="Monty backend required")
 class TestVanillaMontyLive:
     
     @pytest.fixture
-    def agent_helper(self, mock_config, temp_workspace, temp_servers, live_llm_client):
+    def agent_helper(self, mock_config, temp_workspace, temp_servers, live_llm_client, live_llm_model_name):
         """Create a standard AgentHelper with real Monty and Live Client."""
         fs_helper = FilesystemHelper(
             workspace_dir=str(temp_workspace),
@@ -35,9 +32,9 @@ class TestVanillaMontyLive:
             llm_config=mock_config.llm
         )
         
-        # Inject live client
+        # Inject live client and model/deployment name (Azure needs deployment name)
         helper.code_generator._llm_client = live_llm_client
-        helper.code_generator._model_name = "gpt-4o"
+        helper.code_generator._model_name = live_llm_model_name
         
         return helper
 

@@ -20,8 +20,8 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Add project root to path
-project_root = Path(__file__).parent
+# Project root (parent of scripts/)
+project_root = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(project_root))
 
 logger.info("=" * 60)

@@ -5,7 +5,17 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 # Add project root to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_project_root))
+
+# Load .env from project root so test and live LLM config match production loader.
+try:
+    from dotenv import load_dotenv
+    _env_path = _project_root / ".env"
+    if _env_path.exists():
+        load_dotenv(_env_path, override=False)
+except ImportError:
+    pass
 
 from config.schema import AppConfig, LLMConfig, ExecutionConfig, OptimizationConfig, GuardrailConfig
 
@@ -59,28 +69,43 @@ def temp_servers(tmp_path):
     return servers
 
 @pytest.fixture
-def live_llm_client():
-    """Provides a real OpenAI client if API key is present."""
-    # Load .env file if present
-    try:
-        from dotenv import load_dotenv
-        load_dotenv()
-    except ImportError:
-        pass
-        
-    api_key = os.environ.get("OPENAI_API_KEY") or os.environ.get("AZURE_OPENAI_API_KEY")
+def live_app_config():
+    """Load app config from .env / config loader (same as production)."""
+    from config.loader import load_config
+    return load_config()
+
+
+@pytest.fixture
+def live_llm_client(live_app_config):
+    """Return a live OpenAI or Azure client from config loaded from .env. Fails if API key is not set."""
+    llm = live_app_config.llm
+    api_key = llm.api_key or os.environ.get("OPENAI_API_KEY") or os.environ.get("AZURE_OPENAI_API_KEY")
     if not api_key:
-        pytest.skip("No API key found. Skipping live test.")
-    
+        pytest.fail("API key required. Set OPENAI_API_KEY or AZURE_OPENAI_API_KEY in .env")
+
     try:
         from openai import OpenAI, AzureOpenAI
-        if os.environ.get("AZURE_OPENAI_API_KEY"):
+        if llm.provider == "azure_openai" and llm.azure_endpoint:
             return AzureOpenAI(
                 api_key=api_key,
-                api_version="2023-05-15",
-                azure_endpoint=os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+                api_version=llm.azure_api_version,
+                azure_endpoint=llm.azure_endpoint.rstrip("/"),
             )
-        else:
-            return OpenAI(api_key=api_key)
-    except ImportError:
-        pytest.skip("openai package not installed.")
+        return OpenAI(api_key=api_key)
+    except ImportError as e:
+        pytest.fail(f"openai package not installed: {e}")
+
+
+@pytest.fixture
+def live_llm_model_name(live_app_config):
+    """Model or deployment name from config. For Azure, use a chat-capable deployment when the configured one does not support chat completions."""
+    llm = live_app_config.llm
+    if llm.provider == "azure_openai":
+        name = (llm.azure_deployment_name or "").strip()
+        # Use a chat-capable deployment when the configured one does not support chat completions.
+        if not name or "codex" in name.lower():
+            return os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-5.2-chat")
+        return name
+    return llm.model or "gpt-4o"
+
+

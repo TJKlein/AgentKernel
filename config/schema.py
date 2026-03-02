@@ -54,7 +54,7 @@ class LLMConfig(BaseModel):
     max_completion_tokens: Optional[int] = Field(default=None, description="Max completion tokens (for newer models)")
     # Azure OpenAI specific
     azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
-    azure_api_version: str = Field(default="2024-08-01-preview", description="Azure API version")
+    azure_api_version: str = Field(default="2024-12-01-preview", description="Azure API version (e.g. 2024-12-01-preview for gpt-5.2-chat)")
     azure_deployment_name: Optional[str] = Field(default=None, description="Azure deployment name")
 
 

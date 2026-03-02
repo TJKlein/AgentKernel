@@ -45,10 +45,12 @@ htmlcov/
 .dmypy.json
 dmypy.json
 
-# Environment
+# Environment and local config (do not commit .env or files containing credentials)
 .env
 .env.local
+.env.*.local
 !.env.example
+.codex/
 
 # Logs
 logs/
@@ -63,7 +65,13 @@ servers/**/*.py
 workspace/*
 !workspace/.gitkeep
 
+# Local and generated (do not commit)
+private/
+trials/
+workspace_monty_io/
+
 # OS
 .DS_Store
 Thumbs.db
 
+drafts/

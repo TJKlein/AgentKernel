@@ -20,7 +20,7 @@ def run_test(name, script_path):
             capture_output=True,
             text=True,
             timeout=180,
-            cwd=Path(__file__).parent
+            cwd=Path(__file__).resolve().parent.parent
         )
         
         # Save output
@@ -63,8 +63,8 @@ def run_test(name, script_path):
         return False
 
 def main():
-    base_path = Path(__file__).parent
-    
+    base_path = Path(__file__).resolve().parent.parent
+
     tests = [
         ("Simple Test", base_path / "simple_test.py"),
         ("Volume Mount Test", base_path / "test_volume_mount.py"),

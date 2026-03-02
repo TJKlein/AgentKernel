@@ -4,19 +4,16 @@ from client.monty_executor import MontyExecutor
 from client.filesystem_helpers import FilesystemHelper
 from client.base import ExecutionResult
 
-# Skip if Monty not installed
 try:
     import pydantic_monty
-    HAS_MONTY = True
 except ImportError:
-    HAS_MONTY = False
+    pydantic_monty = None  # type: ignore
 
 @pytest.mark.live
-@pytest.mark.skipif(not HAS_MONTY, reason="Monty backend required")
 class TestRecursiveAgentLive:
     
     @pytest.fixture
-    def agent(self, mock_config, temp_workspace, temp_servers, live_llm_client):
+    def agent(self, mock_config, temp_workspace, temp_servers, live_llm_client, live_llm_model_name):
         """Create a RecursiveAgent instance with real Monty executor and real LLM."""
         # Setup filesystem helper
         fs_helper = FilesystemHelper(
@@ -43,9 +40,9 @@ class TestRecursiveAgentLive:
             llm_config=mock_config.llm,
         )
         
-        # Inject REAL LLM client
+        # Inject real LLM client and model/deployment name (Azure needs deployment name)
         agent.code_generator._llm_client = live_llm_client
-        agent.code_generator._model_name = "gpt-4o" # Use a smart model for code gen
+        agent.code_generator._model_name = live_llm_model_name
         
         return agent
 

@@ -74,19 +74,19 @@ class RecursiveAgent(AgentHelper):
             
             try:
                 # Use same config as main agent
+                model_name = self.code_generator._model_name or ""
                 completion_params = {
-                    "model": self.code_generator._model_name,
+                    "model": model_name,
                     "messages": [
                         {"role": "system", "content": "You are a helpful assistant. Answer the question based on the context provided."},
                         {"role": "user", "content": full_prompt}
                     ],
-                    "temperature": 0.0, # Deterministic for data extraction
+                    "temperature": 1.0 if "gpt-5.2-chat" in model_name else 0.0,
                 }
-                 # Check if model supports max_completion_tokens (newer models)
-                if hasattr(self.llm_config, 'max_completion_tokens') and self.llm_config.max_completion_tokens:
-                    completion_params["max_completion_tokens"] = self.llm_config.max_completion_tokens
+                if model_name and ("gpt-5" in model_name or "gpt-4o" in model_name):
+                    completion_params["max_completion_tokens"] = getattr(self.llm_config, "max_completion_tokens", None) or self.llm_config.max_tokens
                 else:
-                    completion_params["max_completion_tokens"] = self.llm_config.max_tokens
+                    completion_params["max_tokens"] = self.llm_config.max_tokens
 
                 response = self.code_generator._llm_client.chat.completions.create(**completion_params)
                 answer = response.choices[0].message.content.strip()

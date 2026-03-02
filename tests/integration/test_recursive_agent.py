@@ -102,7 +102,7 @@ for i in range(0, len(CONTEXT_DATA), chunk_size):
         # But our `fs_helper` points to `temp_servers`.
         # We need to populate `temp_servers` with a calculator.
         calc_dir = Path(agent.fs_helper.servers_dir) / "calculator"
-        calc_dir.mkdir(parents=True)
+        calc_dir.mkdir(parents=True, exist_ok=True)
         (calc_dir / "multiply.py").write_text("def multiply(a, b): return a * b")
         (calc_dir / "__init__.py").write_text("from .multiply import multiply")
         

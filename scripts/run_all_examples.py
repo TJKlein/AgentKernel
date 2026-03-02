@@ -5,9 +5,10 @@ import sys
 import time
 from pathlib import Path
 
-# Add project root to path
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
+# Project root (parent of scripts/)
+_project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_project_root))
+project_root = _project_root
 
 # List of examples to run
 EXAMPLES = [

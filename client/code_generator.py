@@ -298,23 +298,30 @@ Only generate the usage code (not the imports). The code should be executable an
 
 Generated code:"""
 
-            # Use max_completion_tokens for newer models, max_tokens for older ones
+            # Newer models (gpt-5.x, gpt-4o) require max_completion_tokens; older APIs use max_tokens.
             completion_params = {
                 "model": self._model_name,
                 "messages": [
                     {"role": "system", "content": "You are a helpful code generator that creates clean, executable Python code."},
                     {"role": "user", "content": prompt}
                 ],
-                "temperature": self.llm_config.temperature,
             }
-            
-            # Check if model supports max_completion_tokens (newer models)
-            # Use max_completion_tokens if available, otherwise fall back to max_tokens
-            if hasattr(self.llm_config, 'max_completion_tokens') and self.llm_config.max_completion_tokens:
-                completion_params["max_completion_tokens"] = self.llm_config.max_completion_tokens
+            # Model gpt-5.2-chat accepts only the default temperature (1.0).
+            if self._model_name and "gpt-5.2-chat" in self._model_name:
+                completion_params["temperature"] = 1.0
+            else:
+                completion_params["temperature"] = self.llm_config.temperature
+            use_completion_tokens = (
+                getattr(self.llm_config, "max_completion_tokens", None)
+                or (self._model_name and ("gpt-5" in self._model_name or "gpt-4o" in self._model_name))
+            )
+            if use_completion_tokens:
+                completion_params["max_completion_tokens"] = (
+                    getattr(self.llm_config, "max_completion_tokens", None) or self.llm_config.max_tokens
+                )
             else:
                 completion_params["max_tokens"] = self.llm_config.max_tokens
-            
+
             response = self._llm_client.chat.completions.create(**completion_params)
             
             generated_code = response.choices[0].message.content.strip()

@@ -17,7 +17,8 @@ import asyncio
 import atexit
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
+_SCRIPT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_SCRIPT_ROOT))
 
 # Available examples
 EXAMPLES = {
@@ -35,7 +36,7 @@ def load_and_run_example(example_path, suppress_output=False):
         example_path: Path to example file
         suppress_output: If True, suppress stdout/stderr during execution
     """
-    spec = importlib.util.spec_from_file_location("example", Path(__file__).parent / example_path)
+    spec = importlib.util.spec_from_file_location("example", _SCRIPT_ROOT / example_path)
     example = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(example)
     

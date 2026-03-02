@@ -3,6 +3,7 @@
 ![AgentKernel Banner](assets/agentkernel_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/your-org/agentkernel/workflows/Tests/badge.svg)](https://github.com/your-org/agentkernel/actions)
 [![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
@@ -24,8 +25,8 @@ The fastest way to run AgentKernel is with Docker. This spins up a fully patched
 git clone https://github.com/your-org/agentkernel.git
 cd agentkernel
 
-# Set your API keys
-export OPENAI_API_KEY=sk-...
+# Set your API key (or use a .env file; do not commit credentials)
+export OPENAI_API_KEY=your-key-here
 
 # Start the environment
 docker-compose up --build
@@ -37,6 +38,8 @@ You are now ready to run agents inside the container!
 # In a new terminal
 docker-compose exec agentkernel python examples/00_simple_api.py
 ```
+
+**Running locally:** Clone the repository, then run `make env` (copy `.env.example` to `.env` and set your API key), `make install-dev`, and `make test`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the full setup guide and microsandbox configuration.
 
 ---
 
@@ -126,7 +129,7 @@ pip install agentkernel
 
 ### 3. Verify Setup
 ```bash
-python -c "from agentkernel import verify_setup; verify_setup()"
+python verify_setup.py
 ```
 
 ## 5. Usage Example
@@ -161,17 +164,19 @@ AgentKernel supports **Recursive Language Models**, a powerful pattern for proce
 
 See `examples/15_recursive_agent.py` for a complete example.
 
-## 7. Testing
+## 7. Development and testing
 
-AgentKernel includes a comprehensive test suite using `pytest`.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup and contribution guidelines.
 
 ```bash
-# Run unit tests
-pytest tests/unit
-
-# Run live E2E tests (requires API keys)
-pytest tests/e2e
+make install-dev    # Install with dev deps
+make env            # Copy .env.example → .env (add your API keys)
+make test           # Unit + integration (no API key needed)
+make test-e2e       # E2E with real LLM (requires .env)
+make test-all       # Full suite
 ```
+
+Without Make: `pytest tests/ -v -m "not live"` for unit+integration; `pytest tests/e2e/ -v` for live E2E (requires `.env`).
 
 ## 8. References & Inspiration
 
@@ -181,6 +186,10 @@ AgentKernel stands on the shoulders of giants.
 *   **[Microsandbox](https://github.com/TJKlein/microsandbox)**: The robust MicroVM runtime.
 *   **[Recursive Language Models](https://arxiv.org/abs/2512.24601)**: Concepts inspired by research into infinite context processing.
 *   **[Anthropic MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)**: The "tools as code" architectural pattern.
+
+## Supporting the project
+
+If you find AgentKernel useful, consider starring the repository on GitHub. Stars help others discover the project and signal interest to the maintainers.
 
 ## License
 

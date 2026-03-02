@@ -87,7 +87,11 @@ def load_config_from_env() -> Dict[str, Any]:
     
     # Check for Azure OpenAI configuration
     azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
-    azure_deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME") or os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME")
+    azure_deployment = (
+        os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME")
+        or os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT")
+        or os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME")
+    )
     
     # Auto-detect provider if Azure config is present
     provider = os.environ.get("LLM_PROVIDER", "openai")
@@ -104,7 +108,7 @@ def load_config_from_env() -> Dict[str, Any]:
         "temperature": float(os.environ.get("LLM_TEMPERATURE", "0.3")),
         "max_tokens": int(os.environ.get("LLM_MAX_TOKENS", "2000")),
         "azure_endpoint": azure_endpoint,
-        "azure_api_version": os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
+        "azure_api_version": os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
         "azure_deployment_name": azure_deployment,
     }
 

@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  agentkernel:
+    build: .
+    volumes:
+      - .:/app
+      - agent_data:/data
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AZURE_OPENAI_API_KEY=${AZURE_OPENAI_API_KEY}
+      - AZURE_OPENAI_ENDPOINT=${AZURE_OPENAI_ENDPOINT}
+    # Mount the docker socket if we want to support sibling containers (optional, advanced)
+    # volumes:
+    #   - /var/run/docker.sock:/var/run/docker.sock
+    command: tail -f /dev/null # Keep container running for interactive use
+
+volumes:
+  agent_data:
