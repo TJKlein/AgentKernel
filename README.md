@@ -51,32 +51,43 @@ AgentKernel standardizes the interaction between the semantic agent (LLM) and th
 
 ```mermaid
 graph TD
-    subgraph Agent ["Agent (Semantic Layer)"]
+    %% Define the distinct vertical layers explicitly
+    subgraph Layer1 ["Agent (Semantic Layer)"]
+        direction TB
         A["LLM Reasoner"]
         B["Planner"]
     end
 
-    subgraph AgentKernel ["AgentKernel (Runtime Layer)"]
+    subgraph Layer2 ["AgentKernel (Runtime Layer)"]
+        direction TB
         K["Kernel Controller"]
         M["Middleware / Task Manager"]
         S["State Manager"]
         SK["Skill Registry (Self-Growing Tool Library)"]
     end
 
-    subgraph Env ["Execution Environment (Sandboxed)"]
+    subgraph Layer3 ["Execution Environment (Sandboxed)"]
+        direction TB
         VM["Runtime Environment (e.g. Microsandbox)"]
         T["MCP Tools"]
         D["Data Context"]
     end
 
+    %% Semantic -> Kernel
     A -->|Generates Program| K
+    
+    %% Kernel -> Env
     K -->|Dispatches| VM
+    K -->|Save Successful Code Action| SK
+    
+    %% Env Internal
     VM -->|Imports| T
     VM -->|Imports| SK
     T -->|Reduces| D
-    VM -->|Returns Artifacts| K
-    K -->|Observations| A
-    K -->|Save Successful Code Action| SK
+    
+    %% Upward Returns (styled or forced to not break top-down flow if possible)
+    VM -.->|Returns Artifacts| K
+    K -.->|Observations| A
 ```
 
 ## 2. Philosophy: Code Actions as Tools
