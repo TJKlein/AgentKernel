@@ -75,17 +75,22 @@ graph TD
 
     %% Semantic -> Kernel
     A -->|Generates Program| K
+    B -.-> A
+    
+    %% Kernel Operations
+    K -->|Delegates async tasks| M
+    K -->|Manages workspace state| S
+    K -->|Save Successful Code Action| SK
     
     %% Kernel -> Env
-    K -->|Dispatches| VM
-    K -->|Save Successful Code Action| SK
+    K -->|Dispatches execution| VM
     
     %% Env Internal
     VM -->|Imports| T
     VM -->|Imports| SK
     T -->|Reduces| D
     
-    %% Upward Returns (styled or forced to not break top-down flow if possible)
+    %% Upward Returns
     VM -.->|Returns Artifacts| K
     K -.->|Observations| A
 ```
