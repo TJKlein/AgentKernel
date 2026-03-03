@@ -51,7 +51,7 @@ cargo build --release
 #### 3. Install AgentKernel
 
 ```bash
-git clone https://github.com/your-org/agentkernel.git
+git clone https://github.com/TJKlein/agentkernel.git
 cd agentkernel
 pip install -e .
 ```
@@ -891,4 +891,4 @@ Shutdown task manager.
 
 ---
 
-For more information, see the [README](README.md) or visit the [GitHub repository](https://github.com/your-org/agentkernel).
+For more information, see the [README](README.md) or visit the [GitHub repository](https://github.com/TJKlein/agentkernel).

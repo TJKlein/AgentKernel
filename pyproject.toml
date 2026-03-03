@@ -47,9 +47,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/your-org/agentkernel"
-Documentation = "https://github.com/your-org/agentkernel/blob/main/DOCS.md"
-Repository = "https://github.com/your-org/agentkernel"
+Homepage = "https://github.com/TJKlein/agentkernel"
+Documentation = "https://github.com/TJKlein/agentkernel/blob/main/DOCS.md"
+Repository = "https://github.com/TJKlein/agentkernel"
 
 [tool.setuptools]
 packages = ["agentkernel", "client", "config", "server"]

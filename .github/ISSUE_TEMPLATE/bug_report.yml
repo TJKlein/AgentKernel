@@ -1,0 +1,54 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: input
+    id: version
+    attributes:
+      label: AgentKernel Version
+      description: What version of AgentKernel are you using?
+      placeholder: ex. 0.1.1
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Execution Backend
+      description: Which backend were you running?
+      options:
+        - Microsandbox
+        - Monty
+        - Other/None
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can we trigger this bug?
+      placeholder: |
+        1. Go to '...'
+        2. Run '....'
+        3. See error
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true

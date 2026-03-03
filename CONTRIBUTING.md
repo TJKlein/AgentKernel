@@ -4,7 +4,7 @@ This document describes how to set up the development environment, run tests, an
 
 ## Before submitting the repository to GitHub
 
-- Replace `your-org/agentkernel` with your actual GitHub org and repo name in: `README.md`, `CONTRIBUTING.md`, `DOCS.md`, `pyproject.toml`, and any workflow badge URLs.
+- Replace `TJKlein/agentkernel` with your actual GitHub org and repo name in: `README.md`, `CONTRIBUTING.md`, `DOCS.md`, `pyproject.toml`, and any workflow badge URLs.
 - Ensure `.env` and `.codex/` are not tracked (they are in `.gitignore`). If they were ever committed, run `git rm -r --cached .env .codex 2>/dev/null; git commit -m "Stop tracking local config"` before pushing.
 - Run `make test` (or `pytest tests/ -m "not live"`) to confirm tests pass.
 
@@ -29,7 +29,7 @@ Run scripts from the repository root (e.g. `python scripts/check_setup.py`). Roo
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/your-org/agentkernel.git
+git clone https://github.com/TJKlein/agentkernel.git
 cd agentkernel
 
 # 2. Create a virtual environment (recommended)

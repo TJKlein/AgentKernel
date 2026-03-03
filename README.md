@@ -3,7 +3,7 @@
 ![AgentKernel Banner](assets/agentkernel_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/your-org/agentkernel/workflows/Tests/badge.svg)](https://github.com/your-org/agentkernel/actions)
+[![Tests](https://github.com/TJKlein/agentkernel/workflows/Tests/badge.svg)](https://github.com/TJKlein/agentkernel/actions)
 [![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
@@ -24,7 +24,7 @@ What sets AgentKernel apart is its implementation of **[Code Actions as Tools](h
 The fastest way to run AgentKernel is with Docker. This spins up a fully patched `microsandbox` environment and the AgentKernel runtime in a single command.
 
 ```bash
-git clone https://github.com/your-org/agentkernel.git
+git clone https://github.com/TJKlein/agentkernel.git
 cd agentkernel
 
 # Set your API key (or use a .env file; do not commit credentials)
@@ -51,22 +51,22 @@ AgentKernel standardizes the interaction between the semantic agent (LLM) and th
 
 ```mermaid
 graph TD
-    subgraph "Agent (Semantic Layer)"
-        A[LLM Reasoner]
-        B[Planner]
+    subgraph Agent ["Agent (Semantic Layer)"]
+        A["LLM Reasoner"]
+        B["Planner"]
     end
 
-    subgraph "AgentKernel (Runtime Layer)"
-        K[Kernel Controller]
-        M[Middleware / Task Manager]
-        S[State Manager]
-        SK["Skill Registry<br/>(Self-Growing Tool Library)"]
+    subgraph AgentKernel ["AgentKernel (Runtime Layer)"]
+        K["Kernel Controller"]
+        M["Middleware / Task Manager"]
+        S["State Manager"]
+        SK["Skill Registry (Self-Growing Tool Library)"]
     end
 
-    subgraph "Execution Environment (Sandboxed)"
-        VM["Runtime Environment<br/>(e.g. Microsandbox)"]
-        T[MCP Tools]
-        D[Data Context]
+    subgraph Env ["Execution Environment (Sandboxed)"]
+        VM["Runtime Environment (e.g. Microsandbox)"]
+        T["MCP Tools"]
+        D["Data Context"]
     end
 
     A -->|Generates Program| K
