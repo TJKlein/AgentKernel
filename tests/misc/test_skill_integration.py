@@ -14,10 +14,10 @@ import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from client.skill_manager import SkillManager
-from client.sandbox_executor import SandboxExecutor
+from client.sandbox_executor import MicrosandboxExecutor
 from config.schema import ExecutionConfig, GuardrailConfig, OptimizationConfig
 
 
@@ -54,7 +54,7 @@ def test_skill_sandbox_integration():
         guardrail_config = GuardrailConfig()
         optimization_config = OptimizationConfig()
         
-        executor = SandboxExecutor(
+        executor = MicrosandboxExecutor(
             execution_config=execution_config,
             guardrail_config=guardrail_config,
             optimization_config=optimization_config,

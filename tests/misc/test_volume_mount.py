@@ -6,12 +6,14 @@ import sys
 from pathlib import Path
 
 # Add project root to path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
+import pytest
 from microsandbox import PythonSandbox
 
 
+@pytest.mark.asyncio
 async def test_volume_mount():
     """Test that volume mounting works and files persist."""
     workspace = Path("./workspace").resolve()

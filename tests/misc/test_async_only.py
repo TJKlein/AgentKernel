@@ -2,14 +2,14 @@
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 print("Testing TaskManager (without sandbox execution)...\n")
 
 from agentkernel import TaskManager
-from agentkernel.client.agent_helper import AgentHelper
-from agentkernel.client.filesystem_helpers import FilesystemHelper
-from agentkernel.client.sandbox_executor import SandboxExecutor
+from client.agent_helper import AgentHelper
+from client.filesystem_helpers import FilesystemHelper
+from client.sandbox_executor import MicrosandboxExecutor
 from config import load_config
 
 # Create mock agent that doesn't execute

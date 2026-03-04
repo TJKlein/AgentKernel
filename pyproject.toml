@@ -46,6 +46,9 @@ dev = [
     "types-requests>=2.31.0",
     "pre-commit>=3.5.0",
 ]
+microsandbox = [
+    "microsandbox @ git+https://github.com/TJKlein/microsandbox.git"
+]
 
 [project.urls]
 Homepage = "https://github.com/TJKlein/agentkernel"

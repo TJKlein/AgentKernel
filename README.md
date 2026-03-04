@@ -3,7 +3,7 @@
 ![AgentKernel Banner](assets/agentkernel_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/TJKlein/agentkernel/workflows/Tests/badge.svg)](https://github.com/TJKlein/agentkernel/actions)
+[![Tests](https://github.com/TJKlein/agentkernel/actions/workflows/tests.yml/badge.svg)](https://github.com/TJKlein/agentkernel/actions/workflows/tests.yml)
 [![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
@@ -86,12 +86,8 @@ python examples/00_simple_api.py
 *Requires: Rust toolchain + build from source*
 
 ```bash
-# 1. Build the patched binary (Rust required)
-git clone https://github.com/TJKlein/microsandbox.git
-cd microsandbox && cargo build --release && cd ..
-
-# 2. Install AgentKernel
-pip install agentkernel
+# 1. Install AgentKernel with the microsandbox runtime
+pip install "agentkernel[microsandbox]"
 
 # 3. Set sandbox type
 export SANDBOX_TYPE=microsandbox  # or set sandbox_type: microsandbox in config.yaml
@@ -187,6 +183,11 @@ AgentKernel is built for high-throughput, low-latency execution of agent-generat
 | **State** | Persistent workspace pushing | vs Ephemeral / Stateless |
 | **Cost** | Self-hosted ($0) | vs Cloud metering |
 
+> **Verify Performance Yourself**: You can run the included `benchmark_pooling.py` script to reproduce these numbers in your own environment:
+> ```bash
+> python examples/benchmark_pooling.py
+> ```
+
 ### Pluggable Execution Backends
 
 AgentKernel is backend-agnostic. You can hot-swap the execution engine in `config.yaml` to match your workload's security and performance requirements without changing a single line of agent code.
@@ -223,13 +224,9 @@ opensandbox-server start
 ```
 
 ### 3. Untrusted workloads setup (Microsandbox)
-Requires compiling the patched binary manually (PyPI version does not support volume mounting).
+For full OS isolation using MicroVMs:
 ```bash
-git clone https://github.com/TJKlein/microsandbox.git
-cd microsandbox
-cargo build --release
-cd ..
-pip install agentkernel
+pip install "agentkernel[microsandbox]"
 ```
 
 ### 4. Verify Setup
