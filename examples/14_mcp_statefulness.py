@@ -21,7 +21,7 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agentkernel import create_server, create_agent, execute_task
+from mcpruntime import create_server, create_agent, execute_task
 
 
 def example_direct_state_management():

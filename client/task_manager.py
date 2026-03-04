@@ -1,6 +1,6 @@
 """Task Manager for async background task execution.
 
-This module provides async middleware capabilities for AgentKernel,
+This module provides async middleware capabilities for MCPRuntime,
 allowing agents to dispatch tasks to background workers and collect
 results asynchronously ("fire-and-forget" pattern).
 """

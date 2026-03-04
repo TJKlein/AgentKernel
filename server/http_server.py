@@ -4,10 +4,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 
-from agentkernel import create_agent
-from agentkernel.streaming import StreamingExecutor
+from mcpruntime import create_agent
+from mcpruntime.streaming import StreamingExecutor
 
-app = FastAPI(title="AgentKernel Streaming API")
+app = FastAPI(title="MCPRuntime Streaming API")
 
 class ExecuteRequest(BaseModel):
     code: str

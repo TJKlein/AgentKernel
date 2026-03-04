@@ -1,6 +1,6 @@
-# AgentKernel API Documentation
+# MCPRuntime API Documentation
 
-Complete technical reference for AgentKernel - the high-performance local runtime for autonomous agents.
+Complete technical reference for MCPRuntime - the high-performance local runtime for autonomous agents.
 
 [Back to README](README.md) | [Configuration](#configuration) | [API Reference](#api-reference) | [Examples](#examples)
 
@@ -48,11 +48,11 @@ cargo build --release
 
 **Important**: The standard `msb` installation does NOT support volume mounting. You must build from source.
 
-#### 3. Install AgentKernel
+#### 3. Install MCPRuntime
 
 ```bash
-git clone https://github.com/TJKlein/agentkernel.git
-cd agentkernel
+git clone https://github.com/TJKlein/mcpruntime.git
+cd mcpruntime
 pip install -e .
 ```
 
@@ -62,13 +62,13 @@ pip install -e .
 # Check Microsandbox binary
 ls -lh /path/to/microsandbox/target/release/msbserver
 
-# Check AgentKernel installation
-python -c "from code_execution_mcp import create_agent; print('✓ AgentKernel installed')"
+# Check MCPRuntime installation
+python -c "from code_execution_mcp import create_agent; print('✓ MCPRuntime installed')"
 ```
 
 ### Why Build Microsandbox from Source?
 
-**Critical Requirement**: AgentKernel requires microsandbox with **volume mounting support**, which is NOT included in the standard installation.
+**Critical Requirement**: MCPRuntime requires microsandbox with **volume mounting support**, which is NOT included in the standard installation.
 
 #### The Problem
 
@@ -79,7 +79,7 @@ The standard microsandbox installation (`curl -sSL https://get.microsandbox.dev 
 
 #### What Volume Mounting Enables
 
-Volume mounting allows AgentKernel to:
+Volume mounting allows MCPRuntime to:
 
 1. **Persistent Workspace**: Share files between your host system and the sandbox
 2. **Tool Libraries**: Mount MCP tools and Python modules directly into the sandbox
@@ -118,7 +118,7 @@ If you see `"Invalid params for sandbox.start"`, you're using the wrong binary. 
 
 ### Automatic Setup Verification
 
-To prevent setup mistakes, AgentKernel includes an automatic verification script:
+To prevent setup mistakes, MCPRuntime includes an automatic verification script:
 
 ```bash
 python verify_setup.py
@@ -136,7 +136,7 @@ This script will:
 
 ```
 ============================================================
-AgentKernel Setup Verification
+MCPRuntime Setup Verification
 ============================================================
 
 [1/5] Checking Docker...
@@ -155,7 +155,7 @@ AgentKernel Setup Verification
 
 ============================================================
 ✅ ALL CHECKS PASSED!
-AgentKernel is ready to use.
+MCPRuntime is ready to use.
 ============================================================
 ```
 
@@ -366,7 +366,7 @@ manager = TaskManager(
 
 ## MCP Tools
 
-AgentKernel provides 5 MCP tools for async task management:
+MCPRuntime provides 5 MCP tools for async task management:
 
 ### 1. dispatch_background_task
 
@@ -671,7 +671,7 @@ killall msbserver
 
 ### Benchmarks
 
-| Operation | AgentKernel | Cloud API |
+| Operation | MCPRuntime | Cloud API |
 |-----------|-------------|-----------|
 | Sandbox startup (cold) | ~3s | ~5s |
 | Sandbox startup (pooled) | <100ms | 2-5s |
@@ -737,7 +737,7 @@ agent.clear_tool_cache()
 
 ## GitHub Agentic Workflows
 
-AgentKernel ships GitHub-hosted `gh-aw` workflows that keep issues and documentation aligned with the latest activity. Each workflow runs Codex via the Azure OpenAI endpoint, writes a user-scoped `~/.codex/config.toml`, and uses `safe-outputs` helpers to publish structured artifacts when work is completed.
+MCPRuntime ships GitHub-hosted `gh-aw` workflows that keep issues and documentation aligned with the latest activity. Each workflow runs Codex via the Azure OpenAI endpoint, writes a user-scoped `~/.codex/config.toml`, and uses `safe-outputs` helpers to publish structured artifacts when work is completed.
 
 ### Issue Monster
 
@@ -891,4 +891,4 @@ Shutdown task manager.
 
 ---
 
-For more information, see the [README](README.md) or visit the [GitHub repository](https://github.com/TJKlein/agentkernel).
+For more information, see the [README](README.md) or visit the [GitHub repository](https://github.com/TJKlein/mcpruntime).

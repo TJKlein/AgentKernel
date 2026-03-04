@@ -335,7 +335,7 @@ class AgentHelper:
 
         # Log execution for replay / time-travel debugging
         if self.replay_logging_enabled:
-            from agentkernel.replay_log import log_execution
+            from mcpruntime.replay_log import log_execution
             
             # Use the workspace-relative .replay directory
             log_dir = Path(self.fs_helper.workspace_dir) / ".replay"
@@ -434,7 +434,7 @@ class AgentHelper:
         
         This enables Time-Travel Debugging by replaying prior code states into the sandbox.
         """
-        from agentkernel.replay_log import load_session
+        from mcpruntime.replay_log import load_session
         
         log_dir = Path(self.fs_helper.workspace_dir) / ".replay"
         entries = load_session(session_id, log_dir=log_dir)[:step]

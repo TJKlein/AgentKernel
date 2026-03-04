@@ -129,7 +129,7 @@ def main():
         auto_save_skills=True
     )
     
-    task2 = "Use the generic skill you have available to count the vowels in the string 'AgentKernel learning new tricks'."
+    task2 = "Use the generic skill you have available to count the vowels in the string 'MCPRuntime learning new tricks'."
     
     print(f"User: {task2}\n")
     agent2.execute_task(task_description=task2, verbose=True)

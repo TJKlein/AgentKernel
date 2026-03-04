@@ -1,12 +1,12 @@
 """
 Zero-dependency Minimal Monty Example
 
-This script demonstrates AgentKernel functioning entirely in-process
+This script demonstrates MCPRuntime functioning entirely in-process
 using the fast 'Monty' AST evaluation backend. It requires no Docker,
 no Rust binaries, and no extra installations beyond 'pydantic-monty'.
 """
 import os
-from agentkernel import create_agent
+from mcpruntime import create_agent
 
 def main():
     # Only run if OPENAI_API_KEY is available

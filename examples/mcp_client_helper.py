@@ -31,7 +31,7 @@ except ImportError:
     FastMCP = None  # type: ignore
 
 try:
-    from agentkernel import create_agent, execute_task
+    from mcpruntime import create_agent, execute_task
     HAS_FRAMEWORK = True
 except ImportError:
     HAS_FRAMEWORK = False

@@ -1,5 +1,5 @@
 """
-Test suite for AgentKernel skill management system.
+Test suite for MCPRuntime skill management system.
 
 This test suite validates:
 - Skill creation and storage
@@ -37,7 +37,7 @@ def print_step(step: str, status: str = ""):
 def test_skill_manager():
     """Run all skill manager tests."""
     print("=" * 60)
-    print("AgentKernel Skill Management Test Suite")
+    print("MCPRuntime Skill Management Test Suite")
     print("=" * 60)
     print()
     

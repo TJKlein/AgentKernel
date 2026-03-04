@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import json
-from agentkernel.replay_log import load_session, list_sessions
+from mcpruntime.replay_log import load_session, list_sessions
 
 def main():
     if len(sys.argv) < 2 or sys.argv[1] == "list":

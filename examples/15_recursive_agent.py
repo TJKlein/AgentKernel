@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from agentkernel import RecursiveAgent, create_agent
+    from mcpruntime import RecursiveAgent, create_agent
     from client.monty_executor import Monty
 except ImportError as e:
     print(f"ERROR: Package not installed properly. {e}")

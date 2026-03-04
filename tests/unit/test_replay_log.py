@@ -1,5 +1,5 @@
 import pytest
-from agentkernel.replay_log import log_execution, load_session, list_sessions
+from mcpruntime.replay_log import log_execution, load_session, list_sessions
 
 @pytest.fixture
 def override_log_dir(tmp_path):

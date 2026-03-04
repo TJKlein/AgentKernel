@@ -1,7 +1,7 @@
 """Example 18: Streaming Execution Output
 
 This example demonstrates how to consume the Server-Sent Events (SSE) streaming API 
-from an AgentKernel server.
+from an MCPRuntime server.
 
 Prerequisites:
   1. Start the HTTP server in another terminal:

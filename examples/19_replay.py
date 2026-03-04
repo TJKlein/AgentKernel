@@ -1,6 +1,6 @@
 """Example 19: Execution Replay and Time-Travel Debugging
 
-Demonstrates how AgentKernel logs execution state and allows for
+Demonstrates how MCPRuntime logs execution state and allows for
 "Time-Travel Debugging" - rewinding an agent session to a specific point
 and taking a different path.
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from agentkernel import create_agent
+from mcpruntime import create_agent
 
 def main():
     print("=" * 60)

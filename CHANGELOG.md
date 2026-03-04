@@ -14,14 +14,14 @@ All notable changes to this project will be documented in this file.
 - **Configuration**:
     - Added `opensandbox_domain` and `opensandbox_image` fields to `ExecutionConfig`.
 - **Docker Compose Profiles**:
-    - Restructured `docker-compose.yml` into profiles: `agentkernel` (OpenSandbox default), `microsandbox` (privileged), and `monty` fallback.
+    - Restructured `docker-compose.yml` into profiles: `mcpruntime` (OpenSandbox default), `microsandbox` (privileged), and `monty` fallback.
     - Simplified `Dockerfile` default build to `python-only` target, significantly reducing build time.
 - **Streaming Execution Output**:
     - `StreamingExecutor` wrapper for yielding live execution text line-by-line.
     - `POST /execute/stream` Server-Sent Events (SSE) API endpoint in `server/http_server.py`.
     - Included `examples/18_streaming.py` client demo connecting via `httpx`.
 - **Time-Travel Debugging & Replay**:
-    - Automatic JSONL session logging via `agentkernel/replay_log.py`.
+    - Automatic JSONL session logging via `mcpruntime/replay_log.py`.
     - Rewind and fork agent sessions via `AgentHelper.resume_from(session_id, step)`.
     - Added `replay.py` CLI utility to repo root for playing back sessions frame-by-frame.
     - Included `examples/19_replay.py` demo.
@@ -34,7 +34,7 @@ All notable changes to this project will be documented in this file.
     - Explicitly warned generated code not to call `globals()` to access `CONTEXT_DATA` (it is a direct variable in scope).
 
 ### Changed
-- **Default execution backend changed from `microsandbox` to `opensandbox`** across `config/schema.py`, `config/loader.py`, `agentkernel/__init__.py`, and `config.example.yaml`.
+- **Default execution backend changed from `microsandbox` to `opensandbox`** across `config/schema.py`, `config/loader.py`, `mcpruntime/__init__.py`, and `config.example.yaml`.
 - `create_agent()` factory now falls back to `OpenSandboxExecutor` for unknown sandbox types.
 - README Quick Start completely rewritten with three clear backend options (A: OpenSandbox, B: Monty, C: Microsandbox), each with numbered copy-paste commands and error guidance.
 
@@ -108,7 +108,7 @@ All notable changes to this project will be documented in this file.
 ## [0.1.0] - 2026-01-30
 
 ### Added
-- Initial release of AgentKernel.
+- Initial release of MCPRuntime.
 - Support for Microsandbox execution.
 - MCP tool discovery and selection using semantic search.
 - Async middleware for background task execution.

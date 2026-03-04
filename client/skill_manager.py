@@ -1,4 +1,4 @@
-"""Skill management for AgentKernel.
+"""Skill management for MCPRuntime.
 
 This module allows agents to save, discover, and reuse code patterns as "skills".
 Skills are saved as Python modules in the workspace/skills/ directory with

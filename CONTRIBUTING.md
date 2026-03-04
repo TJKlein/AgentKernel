@@ -1,10 +1,10 @@
-# Contributing to AgentKernel
+# Contributing to MCPRuntime
 
 This document describes how to set up the development environment, run tests, and submit changes. For questions or discussions, please open an issue on GitHub.
 
 ## Before submitting the repository to GitHub
 
-- Replace `TJKlein/agentkernel` with your actual GitHub org and repo name in: `README.md`, `CONTRIBUTING.md`, `DOCS.md`, `pyproject.toml`, and any workflow badge URLs.
+- Replace `TJKlein/mcpruntime` with your actual GitHub org and repo name in: `README.md`, `CONTRIBUTING.md`, `DOCS.md`, `pyproject.toml`, and any workflow badge URLs.
 - Ensure `.env` and `.codex/` are not tracked (they are in `.gitignore`). If they were ever committed, run `git rm -r --cached .env .codex 2>/dev/null; git commit -m "Stop tracking local config"` before pushing.
 - Run `make test` (or `pytest tests/ -m "not live"`) to confirm tests pass.
 
@@ -12,7 +12,7 @@ This document describes how to set up the development environment, run tests, an
 
 | Path | Purpose |
 |------|---------|
-| `agentkernel/` | Main package (public API, MCP, server). |
+| `mcpruntime/` | Main package (public API, MCP, server). |
 | `client/` | Agent helpers, executors, code generation, tools. |
 | `config/` | Configuration schema and loader. |
 | `server/` | MCP server implementation. |
@@ -29,8 +29,8 @@ Run scripts from the repository root (e.g. `python scripts/check_setup.py`). Roo
 
 ```bash
 # 1. Clone the repo
-git clone https://github.com/TJKlein/agentkernel.git
-cd agentkernel
+git clone https://github.com/TJKlein/mcpruntime.git
+cd mcpruntime
 
 # 2. Create a virtual environment (recommended)
 python -m venv .venv
@@ -89,7 +89,7 @@ E2E tests require a configured LLM; unit and integration tests do not. Do not ad
 
 ## Microsandbox configuration (optional)
 
-To run AgentKernel with the **microsandbox** runtime (MicroVM) instead of Monty:
+To run MCPRuntime with the **microsandbox** runtime (MicroVM) instead of Monty:
 
 1. **Clone and build microsandbox** (requires Rust):
    ```bash
@@ -106,7 +106,7 @@ To run AgentKernel with the **microsandbox** runtime (MicroVM) instead of Monty:
    ```
    The server listens on `127.0.0.1:5555` by default.
 
-3. **Verify setup** from the AgentKernel repo:
+3. **Verify setup** from the MCPRuntime repo:
    ```bash
    make verify
    # or: python verify_setup.py
@@ -123,7 +123,7 @@ The default test backend is Monty; microsandbox is optional. Use microsandbox wh
 ## Code style
 
 - Format: `black .` / `ruff check .`
-- Type check: `mypy agentkernel client config server` (if mypy is installed)
+- Type check: `mypy mcpruntime client config server` (if mypy is installed)
 
 ## Getting help
 

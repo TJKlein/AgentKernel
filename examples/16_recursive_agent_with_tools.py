@@ -12,7 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from agentkernel import RecursiveAgent
+    from mcpruntime import RecursiveAgent
     from client.monty_executor import Monty
 except ImportError as e:
     print(f"ERROR: {e}")

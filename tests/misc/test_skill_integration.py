@@ -1,5 +1,5 @@
 """
-Integration test for AgentKernel skill management with sandbox execution.
+Integration test for MCPRuntime skill management with sandbox execution.
 
 This test verifies the complete skill workflow:
 1. Save a skill using SkillManager
@@ -36,7 +36,7 @@ def print_step(step: str, status: str = ""):
 def test_skill_sandbox_integration():
     """Test skill execution in sandbox."""
     print("=" * 60)
-    print("AgentKernel Skill-Sandbox Integration Test")
+    print("MCPRuntime Skill-Sandbox Integration Test")
     print("=" * 60)
     print()
     

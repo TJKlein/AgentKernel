@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from client.base import CodeExecutor, ExecutionResult, ValidationResult
-from agentkernel.streaming import StreamingExecutor
+from mcpruntime.streaming import StreamingExecutor
 
 class DummyExecutor(CodeExecutor):
     def execute(self, code, context=None):

@@ -1,9 +1,9 @@
-# AgentKernel
+# MCPRuntime
 
-![AgentKernel Banner](assets/agentkernel_banner.png)
+![MCPRuntime Banner](assets/mcpruntime_banner.png)
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://github.com/TJKlein/agentkernel/actions/workflows/tests.yml/badge.svg)](https://github.com/TJKlein/agentkernel/actions/workflows/tests.yml)
+[![Tests](https://github.com/TJKlein/mcpruntime/actions/workflows/tests.yml/badge.svg)](https://github.com/TJKlein/mcpruntime/actions/workflows/tests.yml)
 [![Version](https://img.shields.io/badge/version-0.1.1-blue.svg)](pyproject.toml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](Dockerfile)
@@ -11,21 +11,21 @@
 
 **A minimal computational substrate for Model Context Protocol (MCP) agents — with a self-growing tool library.**
 
-AgentKernel decouples the **execution runtime** from the agent's reasoning loop. It provides a stable, high-performance primitive for building durable agent systems that can read, write, and execute code safely.
+MCPRuntime decouples the **execution runtime** from the agent's reasoning loop. It provides a stable, high-performance primitive for building durable agent systems that can read, write, and execute code safely.
 
-By treating tools as importable libraries within a sandboxed environment (the **[Programmatic Tool Calling](https://www.anthropic.com/engineering/code-execution-with-mcp)** pattern), AgentKernel enables agents to reason over large datasets and perform complex multi-step tasks without the latency and context bloat of chat-based tool use.
+By treating tools as importable libraries within a sandboxed environment (the **[Programmatic Tool Calling](https://www.anthropic.com/engineering/code-execution-with-mcp)** pattern), MCPRuntime enables agents to reason over large datasets and perform complex multi-step tasks without the latency and context bloat of chat-based tool use.
 
-What sets AgentKernel apart is its implementation of **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)**: instead of treating agent-generated code as ephemeral — generated, executed, then discarded — AgentKernel recognizes that a working code action represents a *tested solution*. When saved in a discoverable format with a callable API, it becomes a tool that future code actions can import and compose. **The agent thus serves two roles: a domain-specific agent performing the task at hand, and a toolsmith evolving its own capabilities.**
+What sets MCPRuntime apart is its implementation of **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)**: instead of treating agent-generated code as ephemeral — generated, executed, then discarded — MCPRuntime recognizes that a working code action represents a *tested solution*. When saved in a discoverable format with a callable API, it becomes a tool that future code actions can import and compose. **The agent thus serves two roles: a domain-specific agent performing the task at hand, and a toolsmith evolving its own capabilities.**
 
 ---
 
 ## ⚡️ One-Command Start (Docker)
 
-The fastest way to get started using Docker Compose. This automatically spins up the AgentKernel server with the default OpenSandbox execution backend.
+The fastest way to get started using Docker Compose. This automatically spins up the MCPRuntime server with the default OpenSandbox execution backend.
 
 ```bash
-git clone https://github.com/TJKlein/AgentKernel
-cd AgentKernel
+git clone https://github.com/TJKlein/MCPRuntime
+cd MCPRuntime
 cp .env.example .env   # Add your API keys here
 docker compose up
 ```
@@ -39,14 +39,14 @@ docker compose --profile monty up          # Zero-dependency, in-process executi
 ---
 ## ⚡️ Quick Start
 
-AgentKernel works with **three execution backends**. Pick whichever matches your setup — they all work the same way once running.
+MCPRuntime works with **three execution backends**. Pick whichever matches your setup — they all work the same way once running.
 
 ### Option A — OpenSandbox (Default, recommended)
 *Requires: Docker + one install command*
 
 ```bash
 # 1. Install
-pip install agentkernel opensandbox opensandbox-server
+pip install mcpruntime opensandbox opensandbox-server
 
 # 2. Configure server (one-time)
 opensandbox-server init-config ~/.sandbox.toml --example docker
@@ -68,7 +68,7 @@ python examples/00_simple_api.py
 
 ```bash
 # 1. Install
-pip install agentkernel pydantic-monty
+pip install mcpruntime pydantic-monty
 
 # 2. Set sandbox type
 export SANDBOX_TYPE=monty   # or set sandbox_type: monty in config.yaml
@@ -86,8 +86,11 @@ python examples/00_simple_api.py
 *Requires: Rust toolchain + build from source*
 
 ```bash
-# 1. Install AgentKernel with the microsandbox runtime
-pip install "agentkernel[microsandbox]"
+# 1. Install Microsandbox via Git
+pip install git+https://github.com/TJKlein/microsandbox.git
+
+# 2. Install MCPRuntime
+pip install mcp-agent-runtime
 
 # 3. Set sandbox type
 export SANDBOX_TYPE=microsandbox  # or set sandbox_type: microsandbox in config.yaml
@@ -104,7 +107,7 @@ python examples/00_simple_api.py
 
 ## 1. Architecture
 
-AgentKernel standardizes the interaction between the semantic agent (LLM) and the execution environment (Kernel).
+MCPRuntime standardizes the interaction between the semantic agent (LLM) and the execution environment (Kernel).
 
 ```mermaid
 graph TD
@@ -115,7 +118,7 @@ graph TD
         B["Planner"]
     end
 
-    subgraph Layer2 ["AgentKernel (Runtime Layer)"]
+    subgraph Layer2 ["MCPRuntime (Runtime Layer)"]
         direction TB
         K["Kernel Controller"]
         M["Middleware / Task Manager"]
@@ -154,26 +157,26 @@ graph TD
 
 ## 2. Philosophy: A Pluggable Computational Substrate
 
-Contemporary agent frameworks often conflate logic, planning, and execution into monolithic loops. AgentKernel posits a different approach: **the execution runtime should be decoupled and pluggable.**
+Contemporary agent frameworks often conflate logic, planning, and execution into monolithic loops. MCPRuntime posits a different approach: **the execution runtime should be decoupled and pluggable.**
 
 > **Thesis**: The interesting complexity in agent systems lies not just in prompt engineering, but in the runtime ability to safely execute generated programs across diverse environments — and to **learn from them** by evolving a persistent tool library.
 
-AgentKernel provides a unified API over three foundational execution paradigms:
+MCPRuntime provides a unified API over three foundational execution paradigms:
 1.  **Docker Containers** (via OpenSandbox) for standard workloads.
 2.  **In-Process AST Evaluation** (via Monty) for sub-millisecond reasoning loops.
 3.  **MicroVMs** (via Microsandbox) for total OS-level isolation.
 
-By standardizing execution, AgentKernel handles the heavy lifting of state management, context limits, and tool persistence, letting developers focus on the agent's cognitive loop.
+By standardizing execution, MCPRuntime handles the heavy lifting of state management, context limits, and tool persistence, letting developers focus on the agent's cognitive loop.
 
 ### Code Actions as Tools
 
-AgentKernel implements the **Programmatic Tool Calling (PTC)** pattern described by [Anthropic](https://www.anthropic.com/engineering/code-execution-with-mcp) and [Cloudflare](https://blog.cloudflare.com/code-mode/), treating tools as importable libraries rather than HTTP endpoints.
+MCPRuntime implements the **Programmatic Tool Calling (PTC)** pattern described by [Anthropic](https://www.anthropic.com/engineering/code-execution-with-mcp) and [Cloudflare](https://blog.cloudflare.com/code-mode/), treating tools as importable libraries rather than HTTP endpoints.
 
-Building on this, AgentKernel introduces **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)**: code actions that successfully complete a task are automatically extracted, typed, and saved into a persistent registry. The agent discovers and reuses these evolved tools in future sessions. **The agent thus serves two roles: a problem solver, and a toolsmith evolving its own capabilities.**
+Building on this, MCPRuntime introduces **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)**: code actions that successfully complete a task are automatically extracted, typed, and saved into a persistent registry. The agent discovers and reuses these evolved tools in future sessions. **The agent thus serves two roles: a problem solver, and a toolsmith evolving its own capabilities.**
 
 ## 3. Performance & Capabilities
 
-AgentKernel is built for high-throughput, low-latency execution of agent-generated code across multiple environments.
+MCPRuntime is built for high-throughput, low-latency execution of agent-generated code across multiple environments.
 
 | Capability | Specification | Comparison |
 |------------|---------------|------------|
@@ -190,7 +193,7 @@ AgentKernel is built for high-throughput, low-latency execution of agent-generat
 
 ### Pluggable Execution Backends
 
-AgentKernel is backend-agnostic. You can hot-swap the execution engine in `config.yaml` to match your workload's security and performance requirements without changing a single line of agent code.
+MCPRuntime is backend-agnostic. You can hot-swap the execution engine in `config.yaml` to match your workload's security and performance requirements without changing a single line of agent code.
 
 *   **OpenSandbox (Default)**: [Docker-based local sandbox](https://github.com/alibaba/OpenSandbox) by Alibaba.
     *   *Best for*: Standard workloads requiring familiar Docker environments. Runs any image (`python`, `node`, etc.) locally.
@@ -211,14 +214,14 @@ AgentKernel is backend-agnostic. You can hot-swap the execution engine in `confi
 ## 4. Manual Installation (Advanced)
 
 ### 1. Zero-dependency setup (Monty only)
-If you just want to run AgentKernel with no background servers:
+If you just want to run MCPRuntime with no background servers:
 ```bash
-pip install agentkernel pydantic-monty
+pip install mcpruntime pydantic-monty
 ```
 
 ### 2. Full setup with OpenSandbox (Default)
 ```bash
-pip install agentkernel opensandbox opensandbox-server
+pip install mcpruntime opensandbox opensandbox-server
 opensandbox-server init-config ~/.sandbox.toml --example docker
 opensandbox-server start
 ```
@@ -226,7 +229,8 @@ opensandbox-server start
 ### 3. Untrusted workloads setup (Microsandbox)
 For full OS isolation using MicroVMs:
 ```bash
-pip install "agentkernel[microsandbox]"
+pip install git+https://github.com/TJKlein/microsandbox.git
+pip install mcp-agent-runtime
 ```
 
 ### 4. Verify Setup
@@ -237,7 +241,7 @@ python verify_setup.py
 ## 5. Usage Example
 
 ```python
-from agentkernel import create_agent
+from mcpruntime import create_agent
 
 # Initialize the kernel
 agent = create_agent()
@@ -259,7 +263,7 @@ print(result.output)
 
 ## 6. Skill Evolution (Self-Growing Tool Library)
 
-AgentKernel implements the **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)** pattern, enabling a **Self-Growing Tool Library** where the agent acts as both a problem solver and a toolsmith.
+MCPRuntime implements the **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)** pattern, enabling a **Self-Growing Tool Library** where the agent acts as both a problem solver and a toolsmith.
 
 ### How it works
 
@@ -279,13 +283,13 @@ Turn 2 (related task):
 
 This closed-loop creates an **accumulating advantage**: the more tasks the agent solves, the richer its tool library becomes, and the faster and cheaper future tasks execute.
 
-**Backend Compatibility:** Skill Evolution is seamlessly integrated across all AgentKernel runtimes natively. Whether executing standard scripts in `microsandbox`, running containers via `OpenSandbox`, running high-performance AST evaluations via `MontyExecutor`, or processing infinite-context chunks through the `RecursiveAgent`, evolved skills are automatically saved, discovered, and shared between all backends.
+**Backend Compatibility:** Skill Evolution is seamlessly integrated across all MCPRuntime runtimes natively. Whether executing standard scripts in `microsandbox`, running containers via `OpenSandbox`, running high-performance AST evaluations via `MontyExecutor`, or processing infinite-context chunks through the `RecursiveAgent`, evolved skills are automatically saved, discovered, and shared between all backends.
 
 > See [`examples/17_skill_evolution.py`](examples/17_skill_evolution.py) for an end-to-end demo.
 
 ## 7. Recursive Language Models (RLM)
 
-AgentKernel supports **Recursive Language Models**, a powerful pattern for processing infinite context by treating it as a programmable variable.
+MCPRuntime supports **Recursive Language Models**, a powerful pattern for processing infinite context by treating it as a programmable variable.
 
 *   **Recursive Querying**: The agent writes code to inspect, slice, and chunk this data, and recursively calls the LLM via `ask_llm()` to process each chunk.
 *   **No Context Window Limits**: Process gigabytes of text by delegating the "reading" to a loop, only pulling relevant info into the agent's context.
@@ -294,7 +298,7 @@ See `examples/15_recursive_agent.py` for a complete example.
 
 ## 8. Execution Replay & Time-Travel Debugging
 
-AgentKernel includes full support for **Time-Travel Debugging**, enabling developers to seamlessly log, rewind, and fork agent sessions.
+MCPRuntime includes full support for **Time-Travel Debugging**, enabling developers to seamlessly log, rewind, and fork agent sessions.
 
 ### How it works
 
@@ -311,10 +315,10 @@ python replay.py <session-id> <step>  # View a specific session up to a step
 
 ## 9. Streaming Execution Output
 
-For long-running tasks, waiting for the final output can break the illusion of an active agent. AgentKernel supports yielding execution outputs line-by-line via Server-Sent Events (SSE).
+For long-running tasks, waiting for the final output can break the illusion of an active agent. MCPRuntime supports yielding execution outputs line-by-line via Server-Sent Events (SSE).
 
 *   **`StreamingExecutor`**: A wrapper that intercepts executor stdout and yields real-time chunks.
-*   **SSE API**: Exposed via `POST /execute/stream` on the AgentKernel HTTP server.
+*   **SSE API**: Exposed via `POST /execute/stream` on the MCPRuntime HTTP server.
 
 > See [`examples/18_streaming.py`](examples/18_streaming.py) for a client-side streaming demo.
 
@@ -334,7 +338,7 @@ Without Make: `pytest tests/ -v -m "not live"` for unit+integration; `pytest tes
 
 ## 11. References & Inspiration
 
-AgentKernel stands on the shoulders of giants.
+MCPRuntime stands on the shoulders of giants.
 
 *   **[Code Actions as Tools: Evolving Tool Libraries for Agents](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)** — The conceptual foundation for the Skill Evolution / Self-Growing Tool Library feature. Introduces the idea that working code actions should be saved as typed, discoverable tools rather than discarded after execution.
 *   **[Anthropic: Code Execution with MCP](https://www.anthropic.com/engineering/code-execution-with-mcp)** — The Programmatic Tool Calling pattern: tools as importable code, not JSON schemas.
@@ -346,8 +350,8 @@ AgentKernel stands on the shoulders of giants.
 
 ## Supporting the Project
 
-If you find AgentKernel useful, consider starring the repository on GitHub. Stars help others discover the project and signal interest to the maintainers.
+If you find MCPRuntime useful, consider starring the repository on GitHub. Stars help others discover the project and signal interest to the maintainers.
 
 ## License
 
-MIT &copy; 2026 AgentKernel Team. Developed with the support of the **[Mantix](https://mantix.cloud)** AI Team.
+MIT &copy; 2026 MCPRuntime Team. Developed with the support of the **[Mantix](https://mantix.cloud)** AI Team.

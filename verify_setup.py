@@ -3,7 +3,7 @@
 Microsandbox setup verification script.
 
 This script verifies that microsandbox is properly configured with volume mounting support.
-Run this before using AgentKernel to ensure everything is set up correctly.
+Run this before using MCPRuntime to ensure everything is set up correctly.
 """
 
 import sys
@@ -227,7 +227,7 @@ def check_sandboxfile():
 def main():
     """Run all verification checks."""
     print("=" * 60)
-    print("AgentKernel Setup Verification")
+    print("MCPRuntime Setup Verification")
     print("=" * 60)
     print()
     
@@ -272,16 +272,16 @@ def main():
     print("=" * 60)
     if all_passed:
         print("✅ ALL CHECKS PASSED!")
-        print("AgentKernel is ready to use.")
+        print("MCPRuntime is ready to use.")
         print()
         print("Try it:")
-        print("  python -c \"from agentkernel import execute_task; print(execute_task('print(\\\"Hello!\\\")'))\"")
+        print("  python -c \"from mcpruntime import execute_task; print(execute_task('print(\\\"Hello!\\\")'))\"")
     else:
         print("❌ SETUP INCOMPLETE")
-        print("Please fix the issues above before using AgentKernel.")
+        print("Please fix the issues above before using MCPRuntime.")
         print()
         print("See DOCS.md for detailed setup instructions:")
-        print("  https://github.com/your-org/agentkernel/blob/main/DOCS.md")
+        print("  https://github.com/your-org/mcpruntime/blob/main/DOCS.md")
         sys.exit(1)
     print("=" * 60)
 

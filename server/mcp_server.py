@@ -45,7 +45,7 @@ class MCPServer:
         self.agent = agent or self._create_agent()
         self.task_manager = TaskManager(self.agent)  # Initialize async middleware
         self.skill_manager = SkillManager(self.config.execution.workspace_dir)  # Initialize skill management
-        self.mcp = FastMCP("AgentKernel")  # Updated branding
+        self.mcp = FastMCP("MCPRuntime")  # Updated branding
         self._setup_tools()
 
         # Register custom tools if provided
@@ -56,7 +56,7 @@ class MCPServer:
         """Create a default AgentHelper instance."""
         # Use factory to handle configuration and executor selection centrally
         # Import here to avoid circular dependency
-        from agentkernel import create_agent
+        from mcpruntime import create_agent
         return create_agent(config=self.config)
 
     def _setup_tools(self) -> None:
@@ -221,7 +221,7 @@ class MCPServer:
                 Dictionary with search results based on detail_level
             """
             try:
-                from agentkernel.client.tool_metadata import ToolMetadataIndex
+                from mcpruntime.client.tool_metadata import ToolMetadataIndex
 
                 metadata_index = ToolMetadataIndex(self.agent.fs_helper.servers_dir)
 
@@ -538,12 +538,12 @@ class MCPServer:
 
         @self.mcp.tool()
         def get_version() -> str:
-            """Get the current version of the AgentKernel framework.
+            """Get the current version of the MCPRuntime framework.
             
             Returns:
                 Version string (e.g., "0.1.1")
             """
-            from agentkernel import __version__
+            from mcpruntime import __version__
             return __version__
 
     def register_tool(self, tool_func: Callable, name: Optional[str] = None) -> None:
@@ -596,7 +596,7 @@ class MCPServer:
 
         Example:
             from fastapi import FastAPI
-            from agentkernel import create_server
+            from mcpruntime import create_server
 
             app = FastAPI()
             mcp_server = create_server()
@@ -664,10 +664,10 @@ def run_server(
 if __name__ == "__main__":
     # Allow running as a script
     import sys
-    from agentkernel import __version__
+    from mcpruntime import __version__
 
     if "--version" in sys.argv:
-        print(f"AgentKernel v{__version__}")
+        print(f"MCPRuntime v{__version__}")
         sys.exit(0)
 
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"

@@ -1,4 +1,4 @@
-# AgentKernel Examples
+# MCPRuntime Examples
 
 This directory contains examples demonstrating different use cases of the code execution MCP framework.
 

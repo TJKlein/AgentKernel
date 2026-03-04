@@ -1,10 +1,10 @@
-# AgentKernel — development and test commands.
+# MCPRuntime — development and test commands.
 # See CONTRIBUTING.md for setup and contribution guidelines.
 
 .PHONY: help install install-dev env test test-unit test-e2e verify run-example
 
 help:
-	@echo "AgentKernel — development commands"
+	@echo "MCPRuntime — development commands"
 	@echo ""
 	@echo "  make install      Install the package (pip install -e .)"
 	@echo "  make install-dev  Install with dev dependencies (pytest, ruff, etc.)"
@@ -13,7 +13,7 @@ help:
 	@echo "  make test-unit    Run unit tests only"
 	@echo "  make test-e2e     Run end-to-end tests (requires .env with API keys)"
 	@echo "  make test-all     Run full test suite"
-	@echo "  make verify       Run setup verification (microsandbox/AgentKernel)"
+	@echo "  make verify       Run setup verification (microsandbox/MCPRuntime)"
 	@echo "  make run-example  Run examples/00_simple_api.py"
 	@echo ""
 
