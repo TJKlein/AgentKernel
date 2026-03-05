@@ -238,27 +238,60 @@ pip install mcp-agent-runtime
 python verify_setup.py
 ```
 
-## 5. Usage Example
+## 5. Usage Examples
+
+Because MCPRuntime decouples execution from reasoning, it excels at two distinct paradigms: **Sandboxed Data Processing** and **Programmatic Tool Calling (PTC)**.
+
+### Example A: Sandboxed Data Processing
+The agent receives a natural-language goal, generates a Python program, and MCPRuntime executes it inside the sandbox. Data is processed locally — never exfiltrated back to the LLM.
 
 ```python
 from mcpruntime import create_agent
 
-# Initialize the kernel
 agent = create_agent()
 
-# Execute a complex, multi-step task in a single turn
-result = agent.execute_task("""
-    import pandas as pd
-    from tools.data_analysis import load_dataset
-    
-    # Load and process data locally in the sandbox
-    df = load_dataset("large_file.csv")
-    summary = df.describe()
-    
-    print(summary)
-""")
+# 1. User provides a natural-language goal.
+# 2. The coding agent generates the program below.
+# 3. MCPRuntime executes it inside the sandbox.
+result, output, error = agent.execute_task(
+    "Analyse sales_data.csv and print a statistical summary."
+)
+# ↓ Agent-generated code running in the sandbox:
+#   import pandas as pd
+#   df = pd.read_csv('sales_data.csv')
+#   print(df.describe())
 
-print(result.output)
+print(output)
+```
+
+### Example B: Programmatic Tool Calling (PTC)
+PTC is the same code-generation loop, but the agent-written program *calls enterprise tools as importable Python libraries* rather than issuing raw HTTP requests. MCPRuntime handles all authorization, retries, and observability transparently — the agent never touches credentials.
+
+```python
+from mcpruntime import create_agent
+
+agent = create_agent()
+
+# 1. User provides a natural-language goal.
+# 2. The coding agent generates the program below.
+# 3. MCPRuntime executes it inside the sandbox (auth is resolved by the runtime).
+result, output, error = agent.execute_task(
+    "Find all high-priority production bugs in CORE, "
+    "open a hotfix branch for each, and ping the on-call channel."
+)
+# ↓ Agent-generated code running in the sandbox:
+#   from tools.jira import search_issues, transition_issue
+#   from tools.github import create_hotfix_branch
+#   from tools.slack import notify_oncall
+#
+#   bugs = search_issues('project=CORE AND priority=High AND status=Open')
+#   for bug in bugs:
+#       if 'production' in bug.labels:
+#           branch = create_hotfix_branch(f'fix/{bug.key}')
+#           transition_issue(bug.key, 'IN_PROGRESS')
+#           notify_oncall(f'Action on {bug.key}: branch {branch} created.')
+
+print(output)
 ```
 
 ## 6. Skill Evolution (Self-Growing Tool Library)
@@ -294,7 +327,35 @@ MCPRuntime supports **Recursive Language Models**, a powerful pattern for proces
 *   **Recursive Querying**: The agent writes code to inspect, slice, and chunk this data, and recursively calls the LLM via `ask_llm()` to process each chunk.
 *   **No Context Window Limits**: Process gigabytes of text by delegating the "reading" to a loop, only pulling relevant info into the agent's context.
 
-See `examples/15_recursive_agent.py` for a complete example.
+```python
+from mcpruntime import create_agent
+
+agent = create_agent()
+
+# 1. User provides a natural-language goal.
+# 2. The coding agent generates the program below.
+# 3. The generated program calls ask_llm() *from inside the sandbox*,
+#    re-entering the LLM to semantically analyse each chunk of a backlog
+#    too large to fit in the original context window.
+result, output, error = agent.execute_task(
+    "Go through every ticket in the backlog. "
+    "Escalate to engineering any where the user is frustrated by the login UI change."
+)
+# ↓ Agent-generated code running in the sandbox:
+#   from mcpruntime import ask_llm
+#   from tools.zendesk import get_all_tickets, escalate_ticket
+#
+#   for ticket in get_all_tickets():          # may be thousands of tickets
+#       verdict = ask_llm(                    # ← LLM called recursively mid-execution
+#           f'Is this user frustrated with the login UI? {ticket.text}'
+#       )
+#       if 'yes' in verdict.lower():
+#           escalate_ticket(ticket.id, team='engineering')
+
+print(output)
+```
+
+See `examples/15_recursive_agent.py` and `examples/16_recursive_agent_with_tools.py` for complete end-to-end examples.
 
 ## 8. Execution Replay & Time-Travel Debugging
 
