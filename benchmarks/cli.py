@@ -24,7 +24,7 @@ from .opensandbox_server import ensure_opensandbox_server
 from config.schema import LLMConfig
 
 def main():
-    parser = argparse.ArgumentParser(description="MCPRuntime Benchmark Suite")
+    parser = argparse.ArgumentParser(description="PTC-Bench: The Programmatic Tool Calling Benchmark")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     # RUN command
@@ -37,6 +37,12 @@ def main():
     run_parser.add_argument("--runs", type=int, default=1, help="Number of runs per task")
     run_parser.add_argument("--warm", action="store_true", help="Use warm start (reuse sandbox instance)")
     run_parser.add_argument("--output", type=str, help="Save report to file")
+    
+    # NEW: Approach selection for PTC vs FC comparison
+    run_parser.add_argument("--approach", type=str, default="ptc",
+                           choices=["ptc", "function_calling", "both"],
+                           help="Approach to benchmark: 'ptc' (Programmatic Tool Calling - code in sandbox), "
+                                "'function_calling' (traditional JSON tool calls), or 'both' for comparison. Default: ptc")
     
     # LLM Settings (Agent Mode)
     run_parser.add_argument("--llm-provider", type=str, default="openai",
@@ -128,6 +134,7 @@ def main():
             cold_start=not args.warm,
             llm_config=llm_config,
             use_rlm=getattr(args, "recursive", False),
+            approach=getattr(args, "approach", "ptc"),
         )
         tasks = runner.load_tasks(categories, difficulties, tags)
         
@@ -142,7 +149,7 @@ def main():
         end_time = time.time()
         
         metrics = compute_metrics(results)
-        report = ReportGenerator.markdown_report(metrics, args.backend, results)
+        report = ReportGenerator.markdown_report(metrics, args.backend, results, approach=getattr(args, "approach", "ptc"))
         
         print("\n" + "="*50 + "\n")
         print(report)
@@ -152,6 +159,13 @@ def main():
         if getattr(args, "output", None):
             ReportGenerator.save_report(report, args.output)
             print(f"Report saved to {args.output}")
+            
+        # If running both approaches, also save a standalone comparison report
+        if getattr(args, "approach", "ptc") == "both" and getattr(args, "output", None):
+            comparison_report = ReportGenerator.approach_comparison_report(metrics)
+            comparison_path = Path(args.output).parent / "ptc_vs_fc_comparison.md"
+            ReportGenerator.save_report(comparison_report, str(comparison_path))
+            print(f"PTC vs FC comparison saved to {comparison_path}")
             
     elif args.command == "compare":
         # Ensure we have exactly two backends to compare

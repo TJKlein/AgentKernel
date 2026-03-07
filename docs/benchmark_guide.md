@@ -1,31 +1,45 @@
-# MCPRuntime Benchmark Suite (MRBS)
+# PTC-Bench: The Programmatic Tool Calling Benchmark
 
-The **MCPRuntime Benchmark Suite (MRBS)** is the first comprehensive benchmark for evaluating **agent execution runtimes**—measuring how well OpenSandbox supports LLM-generated code in real-world agent workflows.
+**PTC-Bench** is the first systematic benchmark comparing **Programmatic Tool Calling (PTC)** — where agents generate code that imports and calls tools — vs traditional **Function Calling (FC)** — where agents emit JSON tool calls.
 
-## What MRBS Evaluates
+> **Research Question:** When should AI agents use Programmatic Tool Calling (code-first) vs traditional Function Calling (JSON-first)? We provide empirical answers.
 
-Unlike traditional benchmarks that test pre-written reference code, MRBS tests the **complete agent loop**:
+## What PTC-Bench Evaluates
 
+Unlike traditional benchmarks that test pre-written reference code, PTC-Bench tests the **complete agent loop** for both paradigms:
+
+**PTC Mode:**
 ```
-Natural Language Task → LLM Generates Code → Runtime Executes → Validator Checks
+Natural Language Task → LLM Generates Code → Runtime Executes (Sandbox) → Validator Checks
          ↑                                    ↓              ↓
     (Agent reasoning)              (Execution speed)    (Correctness)
 ```
 
-This provides actionable insights for:
-- **Agent developers**: How well does OpenSandbox support my workload?
-- **Runtime builders**: Where does my sandbox excel or struggle?
-- **Researchers**: What tradeoffs exist between speed, security, and agent success rates?
+**FC Mode:**
+```
+Natural Language Task → LLM Emits JSON Tool Call → Framework Executes Tool → Result → (repeat) → Validator Checks
+         ↑                                                              ↓
+    (Agent reasoning per step)                                   (Multiple LLM rounds)
+```
 
-## Why MRBS is Different
+This provides actionable insights for:
+- **Agent developers**: Which paradigm should I use for my workload?
+- **Tool authors**: How should I expose my tools (code libraries vs JSON APIs)?
+- **Researchers**: When is code-first better than JSON-first? What are the tradeoffs?
+
+## Why PTC-Bench is Different
 
 | Benchmark Type | Measures | Example |
 |----------------|----------|---------|
 | **Code Execution** (e.g., E2B) | Speed of running given code | "How fast does this function run?" |
 | **Agent Capability** (e.g., SWE-bench) | LLM reasoning quality | "Can the LLM fix this bug?" |
-| **MRBS** (this suite) | Runtime support for agent code | "Will the agent's generated code execute correctly on this backend?" |
+| **ToolBench** | Tool selection | "Can the agent pick the right tool?" |
+| **PTC-Bench** (this suite) | **PTC vs FC paradigm comparison** | "Which approach is faster/cheaper/more reliable for this task type?" |
 
-MRBS is unique because it tests what happens **after** the LLM writes code: will it run? how fast? does the output validate?
+PTC-Bench is unique because it:
+1. Tests the **same tasks** with both paradigms for direct comparison
+2. Measures **cost and reliability** (retries, LLM calls) not just speed
+3. Answers the practical question: "Which approach should I use?"
 
 ## Task Taxonomy
 
@@ -65,6 +79,49 @@ Threading, async/await, multiprocessing, synchronization.
 ### 7. **Enterprise Patterns** (16 tasks)
 Real-world workflows: ETL, state machines, circuit breakers, retry logic.
 - *Agent challenge*: Understanding patterns and implementing them correctly
+
+## Comparing Approaches
+
+PTC-Bench runs the same tasks with both paradigms to enable direct comparison:
+
+| Approach | Pattern | Execution |
+|----------|---------|-----------|
+| **PTC** (Programmatic Tool Calling) | LLM generates Python code that imports/calls tools | Code runs in sandbox |
+| **FC** (Function Calling) | LLM emits JSON tool calls; framework executes; results fed back | Multiple LLM rounds |
+
+### Running the Comparison
+
+```bash
+# Run PTC only (default)
+python -m benchmarks run --backend opensandbox --llm-provider openai --approach ptc
+
+# Run Function Calling only
+python -m benchmarks run --backend opensandbox --llm-provider openai --approach function_calling
+
+# Run both and compare
+python -m benchmarks run --backend opensandbox --llm-provider openai --approach both --output results/comparison.md
+```
+
+### Comparison Metrics
+
+When running `--approach both`, the report includes:
+
+| Metric | Description |
+|--------|-------------|
+| **Success Rate** | % of tasks passed (per approach) |
+| **Avg Time** | Execution time including LLM generation |
+| **Avg Cost** | Estimated from token usage |
+| **LLM Calls** | Number of LLM calls (FC typically higher for multi-step) |
+| **Tool Calls** | Number of tool executions |
+| **Retries** | Error recovery attempts |
+
+### Interpreting Results
+
+- **PTC wins**: Code-based orchestration is faster/more reliable for your task type
+- **FC wins**: Simplicity and framework overhead favor JSON tool calls
+- **Mixed**: Consider hybrid—FC for simple tasks, PTC for complex workflows
+
+See [RESULTS.md](../benchmarks/RESULTS.md) for expected patterns and interpretation guidelines.
 
 ### PTC vs Standalone Code: What's the Difference?
 
@@ -325,15 +382,14 @@ MRBS consists of:
 
 ## Citation
 
-If you use MRBS in research, please cite:
+If you use PTC-Bench in research, please cite:
 
 ```bibtex
-@software{mrbs2024,
-  title = {MCPRuntime Benchmark Suite (MRBS): 
-           Evaluating Agent Execution Runtimes},
-  author = {AgentKernel Team},
-  year = {2024},
-  url = {https://github.com/your-org/agentkernel}
+@software{ptcbench2025,
+  title = {PTC-Bench: The Programmatic Tool Calling Benchmark},
+  author = {Klein, Tassilo},
+  year = {2025},
+  url = {https://github.com/TJKlein/mcpruntime}
 }
 ```
 

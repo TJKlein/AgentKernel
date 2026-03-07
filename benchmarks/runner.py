@@ -20,9 +20,17 @@ logger = logging.getLogger(__name__)
 
 
 class BenchmarkRunner:
-    """Runs benchmark tasks across configured backends."""
+    """Runs benchmark tasks across configured backends with dual approach support (PTC vs FC)."""
 
-    def __init__(self, backend: str, n_runs: int = 5, cold_start: bool = True, llm_config=None, use_rlm: bool = False):
+    def __init__(
+        self,
+        backend: str,
+        n_runs: int = 5,
+        cold_start: bool = True,
+        llm_config=None,
+        use_rlm: bool = False,
+        approach: str = "both",  # "ptc", "function_calling", or "both"
+    ):
         """Initialize runner.
 
         Args:
@@ -31,11 +39,13 @@ class BenchmarkRunner:
             cold_start: Whether to create a fresh sandbox for each run
             llm_config: Optional LLM configuration for agentic evaluation
             use_rlm: If True, run RLM (Recursive Language Model) path for tasks with context_data_source
+            approach: Which approach to run: "ptc", "function_calling", or "both"
         """
         self.backend = backend.lower()
         self.n_runs = n_runs
         self.cold_start = cold_start
         self.use_rlm = use_rlm
+        self.approach = approach
         self.config = load_config(Path(__file__).parent.parent / "config.yaml")
         self.llm_config = llm_config
         
@@ -57,6 +67,12 @@ class BenchmarkRunner:
         if self.llm_config and self.llm_config.enabled:
             from client.code_generator import CodeGenerator
             self.code_generator = CodeGenerator(llm_config=self.llm_config, tool_descriptions={})
+        
+        # Initialize FC runner if needed
+        self.fc_runner = None
+        if self.approach in ("function_calling", "both"):
+            from benchmarks.function_calling_runner import FunctionCallingRunner
+            self.fc_runner = FunctionCallingRunner(llm_config=self.llm_config)
 
     def _create_executor(self):
         """Create a fresh executor instance."""
@@ -151,6 +167,7 @@ class BenchmarkRunner:
                 task_id=task.id, task_name=task.name, category=task.category, difficulty=task.difficulty,
                 success=False, score=0.0, execution_time=0.0, output="", error="RLM context fixture not found",
                 validation={}, backend=self.backend, timestamp=time.time(), skipped=False,
+                approach="ptc",
             )
 
         fs_helper = self.fs_helper
@@ -192,6 +209,7 @@ class BenchmarkRunner:
             backend=self.backend,
             timestamp=time.time(),
             skipped=False,
+            approach="ptc",
             iterations=1,
             total_time=total_tts,
             llm_generation_time=0.0,
@@ -266,7 +284,8 @@ class BenchmarkRunner:
                 backend=self.backend,
                 timestamp=time.time(),
                 skipped=True,
-                skip_reason=f"Backend '{self.backend}' not in supported backends {task.supported_backends}"
+                skip_reason=f"Backend '{self.backend}' not in supported backends {task.supported_backends}",
+                approach="ptc",
             )
 
         # Same tasks run with or without recursive: RLM tasks get CONTEXT_DATA in both modes;
@@ -295,6 +314,7 @@ class BenchmarkRunner:
                         task_id=task.id, task_name=task.name, category=task.category, difficulty=task.difficulty,
                         success=False, score=0.0, execution_time=0.0, output="", error="RLM context fixture not found",
                         validation={}, backend=self.backend, timestamp=time.time(), skipped=False,
+                        approach="ptc",
                     )
                 exec_start = time.time()
                 result, output_str, error_str = executor.execute(
@@ -312,6 +332,7 @@ class BenchmarkRunner:
                     task_id=task.id, task_name=task.name, category=task.category, difficulty=task.difficulty,
                     success=passed, score=score, execution_time=exec_time_total, output=output_str, error=error_str,
                     validation=details, backend=self.backend, timestamp=time.time(), skipped=False,
+                    approach="ptc",
                     iterations=1, total_time=exec_time_total, llm_generation_time=0.0, final_error=error_str if not passed else None,
                 )
 
@@ -431,6 +452,7 @@ class BenchmarkRunner:
                 backend=self.backend,
                 timestamp=time.time(),
                 skipped=False,
+                approach="ptc",  # Mark as PTC approach
                 
                 # Agentic stats
                 iterations=iteration,
@@ -456,7 +478,7 @@ class BenchmarkRunner:
                 backend=self.backend,
                 timestamp=time.time(),
                 skipped=False,
-                
+                approach="ptc",
                 iterations=1,
                 total_time=0.0,
                 llm_generation_time=0.0,
@@ -464,8 +486,65 @@ class BenchmarkRunner:
             )
 
 
+    def run_task_fc(self, task: Task) -> TaskResult:
+        """Execute a single task using Function Calling (FC) approach.
+        
+        This runs the traditional tool-calling loop where the LLM emits JSON
+tool calls and the framework executes them.
+        """
+        if not self.fc_runner:
+            return TaskResult(
+                task_id=task.id,
+                task_name=task.name,
+                category=task.category,
+                difficulty=task.difficulty,
+                success=False,
+                score=0.0,
+                execution_time=0.0,
+                output="",
+                error="FC runner not initialized",
+                validation={},
+                backend=self.backend,
+                timestamp=time.time(),
+                skipped=True,
+                skip_reason="FC runner not initialized",
+                approach="function_calling",
+            )
+        
+        # Run task via FC runner
+        fc_result = self.fc_runner.run_task(task)
+        
+        # Validate the output
+        output_str = fc_result.get("output", "")
+        if fc_result.get("success"):
+            passed, score, details = Validator.validate(task, output_str)
+        else:
+            passed, score, details = False, 0.0, {"error": fc_result.get("error", "Unknown error")}
+        
+        return TaskResult(
+            task_id=task.id,
+            task_name=task.name,
+            category=task.category,
+            difficulty=task.difficulty,
+            success=passed,
+            score=score,
+            execution_time=fc_result.get("execution_time", 0.0),
+            output=output_str,
+            error=fc_result.get("error"),
+            validation=details,
+            backend=self.backend,
+            timestamp=time.time(),
+            skipped=False,
+            approach="function_calling",
+            # FC-specific metrics
+            llm_calls=fc_result.get("llm_calls", 0),
+            tool_calls=fc_result.get("tool_calls", 0),
+            retries=fc_result.get("retries", 0),
+            cost=fc_result.get("cost", 0.0),
+        )
+
     def run_suite(self, tasks: List[Task]) -> List[TaskResult]:
-        """Run a suite of tasks, possibly multiple times."""
+        """Run a suite of tasks, possibly multiple times, with dual approach support."""
         all_results = []
         
         try:
@@ -473,26 +552,52 @@ class BenchmarkRunner:
             has_tqdm = True
         except ImportError:
             has_tqdm = False
-            
-        total_runs = len(tasks) * self.n_runs
+        
+        # Determine approaches to run for each task
+        def should_run_approach(task, approach):
+            """Check if a task supports a given approach."""
+            if approach == "ptc":
+                return True  # All tasks support PTC by default
+            elif approach == "function_calling":
+                # FC is supported if task has function_calling in approaches
+                # or has PTC-style tasks that we can adapt
+                if hasattr(task, 'approaches') and task.approaches:
+                    return "function_calling" in task.approaches
+                # Default: FC supported for tasks with mock_mcp_client setup
+                for file_def in task.setup_files:
+                    if 'mock_mcp_client' in file_def.get('source', ''):
+                        return True
+                return False
+            return False
+        
+        # Build list of (task, approach) tuples to run
+        runs = []
+        for task in tasks:
+            if self.approach in ("ptc", "both") and should_run_approach(task, "ptc"):
+                for _ in range(self.n_runs):
+                    runs.append((task, "ptc"))
+            if self.approach in ("function_calling", "both") and should_run_approach(task, "function_calling"):
+                for _ in range(self.n_runs):
+                    runs.append((task, "function_calling"))
+        
+        total_runs = len(runs)
         iterator = range(total_runs)
         if has_tqdm:
-            iterator = tqdm(iterator, desc=f"Running on {self.backend}")
+            iterator = tqdm(iterator, desc=f"Running on {self.backend} ({self.approach})")
+        
+        for idx in iterator:
+            task, approach = runs[idx]
             
-        count = 0
-        for task in tasks:
-            for run_idx in range(self.n_runs):
+            if approach == "ptc":
                 res = self.run_task(task)
-                all_results.append(res)
-                
-                count += 1
-                if has_tqdm:
-                    # Don't update the description every time, it's slow
-                    if count % 5 == 0 or count == total_runs:
-                        pass
-                else:
-                    print(f"[{count}/{total_runs}] {task.id} (Run {run_idx+1}/{self.n_runs}): "
-                          f"{'Skipped' if res.skipped else 'Pass' if res.success else 'Fail'} "
-                          f"({res.execution_time:.2f}s)")
-                          
+            else:  # function_calling
+                res = self.run_task_fc(task)
+            
+            all_results.append(res)
+            
+            if not has_tqdm:
+                print(f"[{idx+1}/{total_runs}] {task.id} ({approach}): "
+                      f"{'Skipped' if res.skipped else 'Pass' if res.success else 'Fail'} "
+                      f"({res.execution_time:.2f}s)")
+        
         return all_results

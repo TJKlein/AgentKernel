@@ -237,7 +237,6 @@ print(f"{tool_name}() = {{result}}")"""
         """
         if not HAS_LITELLM or not self.llm_config:
             return None
-            return None
         
         try:
             # Build tool descriptions for prompt

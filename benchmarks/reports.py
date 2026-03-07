@@ -10,13 +10,32 @@ class ReportGenerator:
     """Generates visual and persistent reports for benchmarks."""
     
     @staticmethod
-    def markdown_report(metrics: BenchmarkMetrics, backend: str, results: List[TaskResult]) -> str:
+    def markdown_report(metrics: BenchmarkMetrics, backend: str, results: List[TaskResult], approach: str = "ptc") -> str:
         """Generate an agent-focused markdown report for a single backend."""
         lines = []
-        lines.append(f"# MRBS Agent Benchmark Report: {backend.upper()}")
+        
+        # Title with approach indication
+        if approach == "both":
+            lines.append(f"# PTC-Bench: Dual Approach Report ({backend.upper()})")
+            lines.append("")
+            lines.append("*Comparing Programmatic Tool Calling (PTC) vs Function Calling (FC) on the same tasks*")
+        elif approach == "function_calling":
+            lines.append(f"# PTC-Bench: Function Calling Report ({backend.upper()})")
+            lines.append("")
+            lines.append("*Evaluating traditional JSON tool calling approach*")
+        else:
+            lines.append(f"# PTC-Bench: Programmatic Tool Calling Report ({backend.upper()})")
+            lines.append("")
+            lines.append("*Evaluating code-first tool calling approach*")
+        
         lines.append("")
-        lines.append("*Evaluating how well this runtime supports LLM-generated agent code*")
-        lines.append("")
+        
+        # Show approach breakdown if both were run
+        if approach == "both" and metrics.approach_breakdown and len(metrics.approach_breakdown) >= 2:
+            lines.append(ReportGenerator.approach_comparison_report(metrics))
+            lines.append("")
+            lines.append("---")
+            lines.append("")
         
         # Agent-Focused Summary
         lines.append("## Agent Performance Summary")
@@ -29,6 +48,11 @@ class ReportGenerator:
         lines.append(f"- **P95 Execution Time**: {metrics.p95_execution_time:.2f}s")
         if metrics.error_count > 0 or metrics.timeout_count > 0:
             lines.append(f"- **Errors/Timeouts**: {metrics.error_count} / {metrics.timeout_count}")
+        
+        # Show cost if available
+        if metrics.total_cost > 0:
+            lines.append(f"- **Total Cost**: ${metrics.total_cost:.4f} (avg ${metrics.avg_cost:.4f} per task)")
+        
         lines.append("")
         
         # Category Breakdown (Agent-focused)
@@ -74,6 +98,143 @@ class ReportGenerator:
         p = Path(path)
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(report_str, encoding="utf-8")
+    
+    @staticmethod
+    def approach_comparison_report(metrics: BenchmarkMetrics) -> str:
+        """Generate a PTC vs Function Calling comparison report.
+        
+        This is the core report for PTC-Bench showing empirical comparison
+        between Programmatic Tool Calling (code-first) and traditional
+        Function Calling (JSON-first).
+        """
+        lines = []
+        lines.append("# PTC-Bench: PTC vs Function Calling Comparison")
+        lines.append("")
+        lines.append("*Empirical comparison of Programmatic Tool Calling vs traditional Function Calling*")
+        lines.append("")
+        
+        # Check if we have approach breakdown
+        if not metrics.approach_breakdown or len(metrics.approach_breakdown) < 2:
+            lines.append("## Note")
+            lines.append("")
+            lines.append("Run with `--approach both` to see PTC vs FC comparison on the same tasks.")
+            lines.append("")
+            return "\n".join(lines)
+        
+        # Extract PTC and FC data
+        ptc_data = metrics.approach_breakdown.get('ptc', {})
+        fc_data = metrics.approach_breakdown.get('function_calling', {})
+        
+        if not ptc_data or not fc_data:
+            lines.append("## Note")
+            lines.append("")
+            lines.append("Both PTC and FC approaches must be run for comparison.")
+            lines.append("Current results only show: " + ", ".join(metrics.approach_breakdown.keys()))
+            lines.append("")
+            return "\n".join(lines)
+        
+        # Summary table
+        lines.append("## Summary Comparison")
+        lines.append("")
+        lines.append("| Metric | Function Calling (FC) | Programmatic Tool Calling (PTC) | Winner |")
+        lines.append("|--------|----------------------|--------------------------------|--------|")
+        
+        # Pass rate
+        fc_pass = fc_data.get('pass_rate', 0) * 100
+        ptc_pass = ptc_data.get('pass_rate', 0) * 100
+        winner_pass = "PTC" if ptc_pass > fc_pass else "FC" if fc_pass > ptc_pass else "Tie"
+        lines.append(f"| Success Rate | {fc_pass:.1f}% | {ptc_pass:.1f}% | **{winner_pass}** |")
+        
+        # Execution time
+        fc_time = fc_data.get('avg_time', 0)
+        ptc_time = ptc_data.get('avg_time', 0)
+        if ptc_time > 0 and fc_time > 0:
+            speedup = fc_time / ptc_time
+            winner_time = "PTC" if ptc_time < fc_time else "FC"
+            lines.append(f"| Avg Time | {fc_time:.2f}s | {ptc_time:.2f}s | **{winner_time}** ({speedup:.2f}x) |")
+        
+        # Cost (if available)
+        fc_cost = fc_data.get('avg_cost', 0)
+        ptc_cost = ptc_data.get('avg_cost', 0)
+        if fc_cost > 0 or ptc_cost > 0:
+            if ptc_cost > 0 and fc_cost > 0:
+                cost_ratio = fc_cost / ptc_cost
+                winner_cost = "PTC" if ptc_cost < fc_cost else "FC"
+                lines.append(f"| Avg Cost | ${fc_cost:.4f} | ${ptc_cost:.4f} | **{winner_cost}** ({cost_ratio:.1f}x cheaper) |")
+        
+        # LLM calls (FC-specific)
+        fc_llm_calls = fc_data.get('avg_llm_calls', 0)
+        ptc_llm_calls = ptc_data.get('avg_llm_calls', 0)
+        if fc_llm_calls > 0:
+            lines.append(f"| Avg LLM Calls | {fc_llm_calls:.1f} | {ptc_llm_calls:.1f} | - |")
+        
+        # Tool calls (FC-specific)
+        fc_tool_calls = fc_data.get('avg_tool_calls', 0)
+        ptc_tool_calls = ptc_data.get('avg_tool_calls', 0)
+        if fc_tool_calls > 0:
+            lines.append(f"| Avg Tool Calls | {fc_tool_calls:.1f} | {ptc_tool_calls:.1f} | - |")
+        
+        # Retries
+        fc_retries = fc_data.get('avg_retries', 0)
+        ptc_retries = ptc_data.get('avg_retries', 0)
+        winner_retries = "PTC" if ptc_retries < fc_retries else "FC" if fc_retries < ptc_retries else "Tie"
+        lines.append(f"| Avg Retries | {fc_retries:.1f} | {ptc_retries:.1f} | **{winner_retries}** |")
+        
+        lines.append("")
+        
+        # Key findings
+        lines.append("## Key Findings")
+        lines.append("")
+        
+        findings = []
+        if ptc_pass > fc_pass + 5:
+            findings.append(f"- **PTC has higher success rate**: +{ptc_pass - fc_pass:.1f} percentage points")
+        elif fc_pass > ptc_pass + 5:
+            findings.append(f"- **FC has higher success rate**: +{fc_pass - ptc_pass:.1f} percentage points")
+        
+        if ptc_time > 0 and fc_time > 0:
+            if ptc_time < fc_time * 0.8:
+                speedup = fc_time / ptc_time
+                findings.append(f"- **PTC is faster**: {speedup:.1f}x speedup for multi-step workflows")
+            elif fc_time < ptc_time * 0.8:
+                slowdown = ptc_time / fc_time
+                findings.append(f"- **FC is faster**: {slowdown:.1f}x faster for simple tasks")
+        
+        if fc_cost > 0 and ptc_cost > 0 and ptc_cost < fc_cost * 0.8:
+            savings = (fc_cost - ptc_cost) / fc_cost * 100
+            findings.append(f"- **PTC is more cost-effective**: {savings:.0f}% cheaper ({fc_cost/ptc_cost:.1f}x)")
+        
+        if ptc_retries < fc_retries * 0.8:
+            findings.append(f"- **PTC handles errors better**: Fewer retries needed ({fc_retries:.1f} vs {ptc_retries:.1f})")
+        
+        if not findings:
+            findings.append("- Results are close between both approaches for the tested tasks")
+        
+        for finding in findings:
+            lines.append(finding)
+        
+        lines.append("")
+        
+        # TL;DR
+        lines.append("## TL;DR")
+        lines.append("")
+        
+        # Determine overall winner based on task characteristics
+        if ptc_time > fc_time * 1.2:
+            lines.append("- **For simple tasks**: FC wins (lower latency, no sandbox overhead)")
+            lines.append("- **For complex workflows**: Test with `--approach both` on multi-step tasks")
+        elif ptc_pass > fc_pass and ptc_time < fc_time:
+            lines.append("- **PTC wins for these tasks**: Faster AND more reliable")
+        elif fc_pass > ptc_pass and fc_time < ptc_time:
+            lines.append("- **FC wins for these tasks**: Faster AND more reliable")
+        else:
+            lines.append("- **Trade-offs exist**: Choose based on your specific requirements")
+        
+        lines.append("")
+        lines.append("Run `python -m benchmarks run --approach both --categories ptc` for a full comparison.")
+        lines.append("")
+        
+        return "\n".join(lines)
 
     @staticmethod
     def comparison_matrix(control_metrics: BenchmarkMetrics, control_name: str, test_metrics: BenchmarkMetrics, test_name: str, format: str = "markdown") -> str:

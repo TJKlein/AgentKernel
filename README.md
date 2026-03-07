@@ -17,6 +17,35 @@ By treating tools as importable libraries within a sandboxed environment (the **
 
 What sets MCPRuntime apart is its implementation of **[Code Actions as Tools](https://gradion-ai.github.io/agents-nanny/2025/12/16/code-actions-as-tools-evolving-tool-libraries-for-agents/)**: instead of treating agent-generated code as ephemeral — generated, executed, then discarded — MCPRuntime recognizes that a working code action represents a *tested solution*. When saved in a discoverable format with a callable API, it becomes a tool that future code actions can import and compose. **The agent thus serves two roles: a domain-specific agent performing the task at hand, and a toolsmith evolving its own capabilities.**
 
+## 🧪 PTC-Bench: The Programmatic Tool Calling Benchmark
+
+**PTC-Bench** is the first systematic benchmark comparing **Programmatic Tool Calling (PTC)** — where agents generate code that imports and calls tools — vs traditional **Function Calling (FC)** — where agents emit JSON tool calls.
+
+> **Research Question:** When should AI agents use Programmatic Tool Calling (code-first) vs traditional Function Calling (JSON-first)?
+
+### Quick Start
+
+```bash
+# Run both approaches and compare
+python -m benchmarks run --backend opensandbox --llm-provider openai --approach both --output results.md
+```
+
+### What It Measures
+
+| Metric | Description |
+|--------|-------------|
+| **Success Rate** | % of tasks completed correctly per approach |
+| **Latency** | Time from prompt to valid output |
+| **Cost** | Estimated from token usage |
+| **LLM Calls** | Number of LLM invocations (FC typically higher) |
+| **Retries** | Error recovery attempts |
+
+### Documentation
+
+- **[How to run](benchmarks/README.md)** — Installation, options, examples
+- **[Interpreting results](benchmarks/RESULTS.md)** — Expected patterns, what results mean
+- **[Full methodology](docs/benchmark_guide.md)** — Task taxonomy, metrics, research design
+
 ---
 
 ## ⚡️ One-Command Start (Docker)

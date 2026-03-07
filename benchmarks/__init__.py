@@ -1,8 +1,8 @@
 """
-MCPRuntime Benchmark Suite (MRBS)
+PTC-Bench: The Programmatic Tool Calling Benchmark
 
-A runtime-first benchmark that measures execution speed, sandbox overhead, 
-and backend tradeoffs.
+The first systematic benchmark comparing Programmatic Tool Calling (PTC) 
+vs traditional Function Calling (FC) for AI agents.
 """
 
 # Re-export key components

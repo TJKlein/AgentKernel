@@ -7,7 +7,10 @@ from .tasks.schema import BenchmarkMetrics, TaskResult
 
 
 def compute_metrics(results: List[TaskResult]) -> BenchmarkMetrics:
-    """Compute aggregate metrics from a list of task results."""
+    """Compute aggregate metrics from a list of task results.
+    
+    Supports dual approach results (PTC and FC) with approach-level breakdowns.
+    """
     
     total = len(results)
     if total == 0:
@@ -18,8 +21,11 @@ def compute_metrics(results: List[TaskResult]) -> BenchmarkMetrics:
             p95_execution_time=0.0, total_wall_time=0.0,
             timeout_count=0, error_count=0,
             category_breakdown={}, difficulty_breakdown={},
+            approach_breakdown={},
             avg_iterations=0.0, avg_time_to_success=0.0,
-            avg_llm_generation_time=0.0
+            avg_llm_generation_time=0.0,
+            avg_llm_calls=0.0, avg_tool_calls=0.0, avg_retries=0.0,
+            total_cost=0.0, avg_cost=0.0
         )
         
     attempted = [r for r in results if not r.skipped]
@@ -53,6 +59,20 @@ def compute_metrics(results: List[TaskResult]) -> BenchmarkMetrics:
     
     llm_times = [getattr(r, "llm_generation_time", 0.0) for r in attempted if r.success]
     avg_llm_time = sum(llm_times) / len(llm_times) if llm_times else 0.0
+    
+    # NEW: FC-specific and cost metrics
+    llm_calls_list = [getattr(r, "llm_calls", 0) for r in attempted]
+    avg_llm_calls = sum(llm_calls_list) / len(llm_calls_list) if llm_calls_list else 0.0
+    
+    tool_calls_list = [getattr(r, "tool_calls", 0) for r in attempted]
+    avg_tool_calls = sum(tool_calls_list) / len(tool_calls_list) if tool_calls_list else 0.0
+    
+    retries_list = [getattr(r, "retries", 0) for r in attempted]
+    avg_retries = sum(retries_list) / len(retries_list) if retries_list else 0.0
+    
+    costs = [getattr(r, "cost", 0.0) for r in attempted]
+    total_cost = sum(costs)
+    avg_cost = total_cost / len(costs) if costs else 0.0
     
     timeouts = sum(1 for r in attempted if "timeout" in (r.error or "").lower())
     errors = sum(1 for r in attempted if not r.success and r.error and "timeout" not in r.error.lower())
@@ -93,6 +113,38 @@ def compute_metrics(results: List[TaskResult]) -> BenchmarkMetrics:
         v["pass_rate"] = v["passed"] / v["attempted"] if v["attempted"] else 0.0
         v["avg_time"] = sum(v["times"]) / len(v["times"]) if v["times"] else 0.0
         del v["times"]
+    
+    # NEW: Approach breakdown (PTC vs FC)
+    approaches = {}
+    for r in results:
+        approach = getattr(r, "approach", "ptc")
+        if approach not in approaches:
+            approaches[approach] = {
+                "total": 0, "attempted": 0, "passed": 0, "skipped": 0,
+                "times": [], "costs": [], "retries": [],
+                "llm_calls": [], "tool_calls": []
+            }
+        approaches[approach]["total"] += 1
+        if r.skipped:
+            approaches[approach]["skipped"] += 1
+        else:
+            approaches[approach]["attempted"] += 1
+            if r.success:
+                approaches[approach]["passed"] += 1
+            approaches[approach]["times"].append(r.execution_time)
+            approaches[approach]["costs"].append(getattr(r, "cost", 0.0))
+            approaches[approach]["retries"].append(getattr(r, "retries", 0))
+            approaches[approach]["llm_calls"].append(getattr(r, "llm_calls", 0))
+            approaches[approach]["tool_calls"].append(getattr(r, "tool_calls", 0))
+    
+    for v in approaches.values():
+        v["pass_rate"] = v["passed"] / v["attempted"] if v["attempted"] else 0.0
+        v["avg_time"] = sum(v["times"]) / len(v["times"]) if v["times"] else 0.0
+        v["avg_cost"] = sum(v["costs"]) / len(v["costs"]) if v["costs"] else 0.0
+        v["avg_retries"] = sum(v["retries"]) / len(v["retries"]) if v["retries"] else 0.0
+        v["avg_llm_calls"] = sum(v["llm_calls"]) / len(v["llm_calls"]) if v["llm_calls"] else 0.0
+        v["avg_tool_calls"] = sum(v["tool_calls"]) / len(v["tool_calls"]) if v["tool_calls"] else 0.0
+        del v["times"], v["costs"], v["retries"], v["llm_calls"], v["tool_calls"]
 
     return BenchmarkMetrics(
         total_tasks=total,
@@ -110,7 +162,13 @@ def compute_metrics(results: List[TaskResult]) -> BenchmarkMetrics:
         error_count=errors,
         category_breakdown=cats,
         difficulty_breakdown=diffs,
+        approach_breakdown=approaches,
         avg_iterations=avg_iterations,
         avg_time_to_success=avg_tts,
-        avg_llm_generation_time=avg_llm_time
+        avg_llm_generation_time=avg_llm_time,
+        avg_llm_calls=avg_llm_calls,
+        avg_tool_calls=avg_tool_calls,
+        avg_retries=avg_retries,
+        total_cost=total_cost,
+        avg_cost=avg_cost
     )
