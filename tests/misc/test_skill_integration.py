@@ -52,6 +52,7 @@ def test_skill_sandbox_integration():
         
         execution_config = ExecutionConfig(
             workspace_dir=workspace_dir,
+            skills_dir=str(Path(workspace_dir) / "skills"),  # SkillManager saves to workspace/skills
             timeout=120.0,  # Increased timeout for first sandbox startup
         )
         guardrail_config = GuardrailConfig()
