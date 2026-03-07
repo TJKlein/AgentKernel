@@ -1,11 +1,12 @@
 """Example 15: Recursive Agent (RLM).
 
-Demonstrates using RecursiveAgent to handle infinite context by treating it as a variable
-in the Monty environment and recursively querying the LLM.
+Demonstrates using RecursiveAgent to handle infinite context: CONTEXT_DATA and
+ask_llm are injected by the OpenSandbox executor; the agent recursively queries
+the LLM over chunks.
 
 Prerequisites:
-    - pydantic-monty installed: pip install pydantic-monty
-    - LLM configuration in .env or environment variables
+    - OpenSandbox: opensandbox-server start (Docker)
+    - LLM: OPENAI_API_KEY or AZURE_OPENAI_* in .env
 """
 
 import sys
@@ -16,8 +17,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
-    from mcpruntime import RecursiveAgent, create_agent
-    from client.monty_executor import Monty
+    from mcpruntime import RecursiveAgent
+    from client.filesystem_helpers import FilesystemHelper
+    from client.opensandbox_executor import OpenSandboxExecutor
+    from config import load_config
 except ImportError as e:
     print(f"ERROR: Package not installed properly. {e}")
     import traceback
@@ -28,61 +31,30 @@ def main():
     print("=" * 60)
     print("Example 15: Recursive Agent (RLM)")
     print("=" * 60)
-    
-    if Monty is None:
-        print("ERROR: pydantic-monty is not installed.")
-        print("Please install it with: pip install pydantic-monty")
-        return
 
-    # Check for API key
     if not os.environ.get("OPENAI_API_KEY") and not os.environ.get("AZURE_OPENAI_API_KEY"):
         print("WARNING: No API key found. RLM requires an LLM to function.")
         print("Set OPENAI_API_KEY or AZURE_OPENAI_API_KEY environment variable.")
         # We continue anyway to show initialization, but execution will fail gracefully
-    
-    # Initialize RecursiveAgent
-    # We can use create_agent but we need to instantiate RecursiveAgent specifically
-    # Currently create_agent returns proper agent based on config, but doesn't expose class selection easily yet
-    # mixed with subtypes. 
-    # So we instantiate directly, reusing helper from create_agent if we wanted, 
-    # but easier to just use the factory we modified or direct init.
-    
-    # Let's instantiate directly to be sure
-    # Load config first to get defaults
-    from config import load_config
+
     config = load_config()
-    
-    # Force Monty executor
-    config.execution.sandbox_type = "monty"
-    
-    # Create agent using our factory params but direct class
-    # We can actually use create_agent if we registered it? 
-    # No, create_agent is hardcoded to return AgentHelper.
-    # We'll just instantiate RecursiveAgent manually reusing the logic from create_agent (roughly)
-    
-    from client.filesystem_helpers import FilesystemHelper
-    from client.monty_executor import MontyExecutor
-    
     fs_helper = FilesystemHelper(
-        workspace_dir="./workspace",
-        servers_dir="./servers",
-        skills_dir="./skills",
+        workspace_dir=config.execution.workspace_dir,
+        servers_dir=config.execution.servers_dir,
+        skills_dir=config.execution.skills_dir,
     )
-    
-    executor = MontyExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=config.guardrails,
         optimization_config=config.optimizations,
     )
-    
     agent = RecursiveAgent(
         fs_helper=fs_helper,
         executor=executor,
         optimization_config=config.optimizations,
         llm_config=config.llm,
     )
-    
-    print("\nInitialized RecursiveAgent with Monty backend.")
+    print("\nInitialized RecursiveAgent with OpenSandbox backend.")
     
     # Path to "large" context
     context_file = Path(__file__).parent / "15_infinite_context.txt"

@@ -3,7 +3,7 @@
 Demonstrates the simplest way to use the framework with the new high-level API.
 
 Prerequisites:
-    - Microsandbox server running: msb server start --dev
+    - OpenSandbox server running: opensandbox-server start (Docker required)
     - Directory structure: servers/, workspace/, skills/
     - Optional: .env file with LLM configuration for code generation
 

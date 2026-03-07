@@ -8,7 +8,7 @@ acts as both a domain expert and a toolsmith:
    instead of re-implementing the logic.
 
 Requires:
-    msb server start --dev
+    OpenSandbox server: opensandbox-server start (Docker)
 """
 
 import os
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from client.agent_helper import AgentHelper
 from client.filesystem_helpers import FilesystemHelper
-from client.sandbox_executor import MicrosandboxExecutor
+from client.opensandbox_executor import OpenSandboxExecutor
 from client.skill_manager import SkillManager
 from config.loader import load_config
 
@@ -59,7 +59,7 @@ def main():
     # We require an LLM for this demo to show prompt injection
     if not config.llm.enabled:
         print("❌ This demo requires LLM code generation to be enabled.")
-        print("   Please set llm.enabled = true in your config.toml")
+        print("   Set LLM_CODE_GENERATION=true or OPENAI_API_KEY / AZURE_OPENAI_* in .env")
         return
 
     # 1. Setup Phase
@@ -74,7 +74,7 @@ def main():
         skills_dir=config.execution.skills_dir,
     )
 
-    executor = MicrosandboxExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=config.guardrails,
         optimization_config=config.optimizations,

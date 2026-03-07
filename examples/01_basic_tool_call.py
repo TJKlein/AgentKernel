@@ -10,24 +10,12 @@ Demonstrates:
 import sys
 from pathlib import Path
 
-# Check if running in virtual environment or if microsandbox is available
-try:
-    import microsandbox
-except ImportError:
-    print("ERROR: microsandbox is not installed or virtual environment is not activated.")
-    print("Please run:")
-    print("  source .venv/bin/activate")
-    print("  python examples/01_basic_tool_call.py")
-    print("\nOr use the venv Python directly:")
-    print("  .venv/bin/python examples/01_basic_tool_call.py")
-    sys.exit(1)
-
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from client.agent_helper import AgentHelper
 from client.filesystem_helpers import FilesystemHelper
-from client.sandbox_executor import SandboxExecutor
+from client.opensandbox_executor import OpenSandboxExecutor
 from config.loader import load_config
 
 
@@ -50,10 +38,10 @@ def main() -> None:
     # Initialize sandbox executor with relaxed guardrails for mock client
     relaxed_guardrails = config.guardrails.model_copy()
     relaxed_guardrails.security_checks = False
-    executor = SandboxExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
-        optimization_config=config.optimizations,  # Pass optimization config
+        optimization_config=config.optimizations,
     )
 
     # Initialize agent helper (combines discovery, selection, generation, execution)

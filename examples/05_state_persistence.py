@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from client.agent_helper import AgentHelper
 from client.filesystem_helpers import FilesystemHelper
-from client.sandbox_executor import SandboxExecutor
+from client.opensandbox_executor import OpenSandboxExecutor
 from config.loader import load_config
 
 
@@ -40,7 +40,7 @@ def session_1_write_state(config) -> tuple[bool, str]:
 
     relaxed_guardrails = config.guardrails.model_copy()
     relaxed_guardrails.security_checks = False
-    executor = SandboxExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
         optimization_config=config.optimizations,
@@ -104,7 +104,7 @@ def session_2_read_state(config) -> tuple[bool, str]:
 
     relaxed_guardrails = config.guardrails.model_copy()
     relaxed_guardrails.security_checks = False
-    executor = SandboxExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=relaxed_guardrails,
         optimization_config=config.optimizations,

@@ -2,6 +2,10 @@
 
 Demonstrates combining RLM (infinite context) with standard Tool usage.
 The agent finds a number in a large file and then uses the Calculator tool to process it.
+
+Prerequisites:
+    - OpenSandbox: opensandbox-server start (Docker)
+    - LLM: OPENAI_API_KEY or AZURE_OPENAI_* in .env
 """
 
 import sys
@@ -13,7 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     from mcpruntime import RecursiveAgent
-    from client.monty_executor import Monty
+    from client.filesystem_helpers import FilesystemHelper
+    from client.opensandbox_executor import OpenSandboxExecutor
+    from config import load_config
 except ImportError as e:
     print(f"ERROR: {e}")
     sys.exit(1)
@@ -22,33 +28,18 @@ def main():
     print("=" * 60)
     print("Example 16: Recursive Agent + Tools")
     print("=" * 60)
-    
-    # Check proper setup
-    if Monty is None:
-        print("ERROR: pydantic-monty not installed.")
-        return
 
-    # Load config
-    from config import load_config
     config = load_config()
-    config.execution.sandbox_type = "monty"
-    
-    # Initialize Agent
-    from client.filesystem_helpers import FilesystemHelper
-    from client.monty_executor import MontyExecutor
-    
     fs_helper = FilesystemHelper(
-        workspace_dir="./workspace",
-        servers_dir="./servers",
-        skills_dir="./skills",
+        workspace_dir=config.execution.workspace_dir,
+        servers_dir=config.execution.servers_dir,
+        skills_dir=config.execution.skills_dir,
     )
-    
-    executor = MontyExecutor(
+    executor = OpenSandboxExecutor(
         execution_config=config.execution,
         guardrail_config=config.guardrails,
         optimization_config=config.optimizations,
     )
-    
     agent = RecursiveAgent(
         fs_helper=fs_helper,
         executor=executor,

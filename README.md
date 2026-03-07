@@ -275,7 +275,7 @@ This closed-loop creates an **accumulating advantage**: the more tasks the agent
 
 MCPRuntime supports **Recursive Language Models**, a powerful pattern for processing infinite context by treating it as a programmable variable.
 
-*   **Recursive Querying**: The agent writes code to inspect, slice, and chunk this data, and recursively calls the LLM via `ask_llm()` to process each chunk.
+*   **Recursive Querying**: The agent writes code to inspect, slice, and chunk this data, and recursively calls the LLM via `ask_llm()` to process each chunk. The runtime injects `ask_llm` (and `CONTEXT_DATA` when applicable) into the sandbox so the generated code can call it without importing.
 *   **No Context Window Limits**: Process gigabytes of text by delegating the "reading" to a loop, only pulling relevant info into the agent's context.
 
 ```python
@@ -293,7 +293,7 @@ result, output, error = agent.execute_task(
     "Escalate to engineering any where the user is frustrated by the login UI change."
 )
 # ↓ Agent-generated code running in the sandbox:
-#   from mcpruntime import ask_llm
+#   (ask_llm is injected by the runtime — no import needed)
 #   from tools.zendesk import get_all_tickets, escalate_ticket
 #
 #   for ticket in get_all_tickets():          # may be thousands of tickets

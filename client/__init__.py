@@ -4,7 +4,7 @@ This package provides the main framework for code execution with MCP (Model Cont
 
 Architecture:
     - Orchestration: AgentHelper (high-level coordination)
-    - Execution: MontyExecutor, OpenSandboxExecutor, SandboxPool (code execution)
+    - Execution: OpenSandboxExecutor, SandboxPool (code execution)
     - Discovery: FilesystemHelper, ToolSelector (tool discovery/selection)
     - Generation: CodeGenerator (code generation)
     - Validation: GuardrailValidator (safety checks)

@@ -1,30 +1,25 @@
 """
-Zero-dependency Minimal Monty Example
+Minimal agent example (default OpenSandbox backend).
 
-This script demonstrates MCPRuntime functioning entirely in-process
-using the fast 'Monty' AST evaluation backend. It requires no Docker,
-no Rust binaries, and no extra installations beyond 'pydantic-monty'.
+Uses create_agent() with default configuration. Requires Docker and
+opensandbox-server start. For LLM-based code generation, set OPENAI_API_KEY
+or Azure env vars.
 """
 import os
 from mcpruntime import create_agent
 
 def main():
-    # Only run if OPENAI_API_KEY is available
-    if "OPENAI_API_KEY" not in os.environ:
-        print("Please set your OPENAI_API_KEY environment variable.")
-        print("Example: export OPENAI_API_KEY='sk-...'")
-        return
+    # Only run if OPENAI_API_KEY is available (for LLM code generation)
+    if "OPENAI_API_KEY" not in os.environ and "AZURE_OPENAI_API_KEY" not in os.environ:
+        print("Optional: set OPENAI_API_KEY or AZURE_OPENAI_API_KEY for LLM code generation.")
+        print("Without it, only pre-written tasks will run. Continuing with default agent...")
 
-    # Create an agent strictly using the Monty backend (no external dependencies)
-    agent = create_agent(
-        # We programmatically override the sandbox type here for the demo
-        config_overrides={"execution": {"sandbox_type": "monty"}}
-    )
-    
-    # We'll use a fast model if default isn't set
-    agent.llm_config.model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    # Default backend is OpenSandbox (Docker). Ensure opensandbox-server start is running.
+    agent = create_agent()
+    if agent.llm_config and agent.llm_config.enabled:
+        agent.llm_config.model = os.environ.get("LLM_MODEL", agent.llm_config.model or "gpt-4o-mini")
 
-    print("\n🚀 Starting Zero-Dependency Monty Agent")
+    print("\n🚀 Starting agent (OpenSandbox backend)")
     print("-" * 50)
     
     prompt = """
@@ -38,7 +33,7 @@ def main():
     result, output, error = agent.execute_task(prompt, verbose=True)
     
     print("-" * 50)
-    if result.is_success():
+    if not error and (result is None or getattr(result, "is_success", lambda: True)()):
         print("✅ Execution Successful!")
         print(f"Output:\n{output}")
     else:
