@@ -26,11 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 class SkillCondition(Enum):
-    """The four skill conditions evaluated in SkillsBench + MCPRuntime."""
+    """Skill conditions for SkillsBench + MCPRuntime + ConceptDriftBench."""
     NO_SKILLS = auto()
     CURATED_SKILLS = auto()
     SELF_GENERATED_SKILLS = auto()
     RUNTIME_EVOLVED_SKILLS = auto()
+    ORACLE_RETRIEVAL = auto()       # ConceptDrift: correct prior skill provided
+    CROSS_FAMILY = auto()           # ConceptDrift: all accumulated skills available
     
     def __str__(self) -> str:
         return self.name.lower()
@@ -96,6 +98,7 @@ class ConditionManager:
             
         self._curated_skills: Dict[str, str] = {}  # task_id -> skill_content
         self._self_generated_skills: Dict[str, str] = {}  # task_id -> skill_content
+        self._oracle_skills: Dict[str, str] = {}  # task_id -> skill_content from prior task
         
         logger.info(f"ConditionManager initialized with condition: {condition.name}")
     
@@ -125,7 +128,37 @@ class ConditionManager:
             if self.skill_manager:
                 return self.skill_manager.get_skill_listing()
             return ""
+
+        elif self.condition == SkillCondition.ORACLE_RETRIEVAL:
+            # Show ONLY the specific oracle skill for this task
+            # The oracle skill is saved with the task's own ID (e.g., oracle_c2 for task C2)
+            # Extract the task prefix from task_id (e.g., "C2" from "C2_spider2_works_cycles")
+            task_prefix = task_id.split('_')[0] if '_' in task_id else task_id
+            oracle_skill_name = f"oracle_{task_prefix.lower()}"
             
+            # Try to get from skill_manager first
+            if self.skill_manager:
+                all_skills = self.skill_manager.list_skills()
+                if any(s["name"] == oracle_skill_name for s in all_skills):
+                    return self.skill_manager.get_skill_listing(
+                        skill_names=[oracle_skill_name]
+                    )
+            
+            # Fallback to raw code from _oracle_skills
+            oracle_code = self._oracle_skills.get(task_id) or self._oracle_skills.get(task_prefix, "")
+            if oracle_code:
+                return (
+                    "\n# A skill from a related prior task is available below.\n"
+                    "# It may or may not be directly applicable — adapt as needed.\n"
+                    f"{oracle_code}\n"
+                )
+            return ""
+
+        elif self.condition == SkillCondition.CROSS_FAMILY:
+            if self.skill_manager:
+                return self.skill_manager.get_skill_listing()
+            return ""
+
         return ""
     
     def set_curated_skill(self, task_id: str, skill_content: str) -> None:
@@ -135,6 +168,10 @@ class ConditionManager:
     def curated_skill_count(self) -> int:
         """Return how many tasks have curated skill content (for metrics)."""
         return len(self._curated_skills)
+
+    def set_oracle_skill(self, task_id: str, skill_content: str) -> None:
+        """Set the oracle skill for a ConceptDrift task (ORACLE_RETRIEVAL condition)."""
+        self._oracle_skills[task_id] = skill_content
         
     def set_self_generated_skill(
         self,
@@ -284,6 +321,17 @@ them execution-grounded rather than speculation-based.
                 "successful code execution (execution-grounded). They contain real "
                 "imports, real signatures, real outputs - not speculation. "
                 "This is the novel contribution: grounded skill evolution."
+            ),
+            SkillCondition.ORACLE_RETRIEVAL: (
+                "Oracle Retrieval (ConceptDrift): The correct skill from the "
+                "immediately prior task in the family is provided. The agent "
+                "must decide whether and how to adapt it. This diagnostic "
+                "condition separates retrieval quality from adaptation quality."
+            ),
+            SkillCondition.CROSS_FAMILY: (
+                "Cross-Family (ConceptDrift): All accumulated skills from every "
+                "family are available. Tests whether skills transfer across "
+                "families and whether composition emerges naturally."
             ),
         }
         return descriptions.get(self.condition, "Unknown condition")

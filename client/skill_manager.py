@@ -262,6 +262,17 @@ Tags: {', '.join(tags or [])}
         
         return sorted(skills, key=lambda x: x["name"])
     
+    def clear_all_skills(self) -> None:
+        """Remove all skills (for benchmark condition isolation).
+        Preserves __init__.py and resets SKILLS.md / skill_index.json.
+        """
+        for skill_file in self.skills_dir.glob("*.py"):
+            if skill_file.name != "__init__.py":
+                skill_file.unlink()
+        self._initialize_skills_file()
+        self._write_skill_index([])
+        logger.debug("Cleared all skills")
+
     def delete_skill(self, name: str) -> Dict[str, str]:
         """Delete a skill.
         
@@ -318,9 +329,16 @@ Tags: {', '.join(tags or [])}
         
         return matching_skills
 
-    def get_skill_listing(self) -> str:
-        """Get a formatted string of available skills for prompt injection."""
+    def get_skill_listing(self, skill_names: Optional[List[str]] = None) -> str:
+        """Get a formatted string of available skills for prompt injection.
+        
+        Args:
+            skill_names: If provided, only list these skills (for condition isolation).
+        """
         skills = self.list_skills()
+        if skill_names is not None:
+            names_set = set(skill_names)
+            skills = [s for s in skills if s["name"] in names_set]
         if not skills:
             return ""
             
@@ -357,10 +375,40 @@ Tags: {', '.join(tags or [])}
         """Heuristic to determine if a generic code snippet is worth saving as a tool.
         
         Checks if:
-        1. Code compiles
-        2. Code defines at least one reusable function
+        1. Code compiles (Python) OR is valid SQL
+        2. Code defines at least one reusable function (Python) OR has SQL structure
         3. Produced structured/sizable output (if output provided)
         """
+        code_stripped = code.strip()
+        if not code_stripped:
+            return False
+        
+        # Check if this looks like SQL (has SQL keywords at start)
+        upper = code_stripped.upper()
+        sql_keywords = ('SELECT', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'WITH', 'ALTER', 'DROP')
+        looks_like_sql = upper.startswith(sql_keywords) or any(
+            re.search(rf'\b{kw}\b', upper) for kw in sql_keywords[:3]
+        )
+        
+        if looks_like_sql:
+            # Validate SQL has minimal structure
+            has_from = 'FROM' in upper
+            has_select = 'SELECT' in upper
+            # Must have SELECT and either FROM or a valid subquery pattern
+            if has_select and (has_from or 'WITH' in upper):
+                # SQL is valid enough - check output like Python
+                if output is not None:
+                    if isinstance(output, (dict, list)):
+                        return True
+                    if isinstance(output, str) and len(output.strip()) > 0:
+                        return True
+                    if isinstance(output, (int, float)):
+                        return True
+                    return False
+                return True
+            return False
+        
+        # Python code path - original logic
         try:
             tree = ast.parse(code)
             has_func = any(isinstance(node, ast.FunctionDef) for node in ast.walk(tree))

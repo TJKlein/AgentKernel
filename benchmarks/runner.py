@@ -452,8 +452,12 @@ class BenchmarkRunner:
 
                 # 1. Generation Phase (Agent generates code)
                 if self.code_generator and task.prompt:
-                    # Natural language task - agent generates solution
-                    prompt = f"Write a Python script to solve this task:\n\n{task.prompt}\n\nYour script should print output that can be validated."
+                    # Special dataset tasks need direct prompt (no full script wrapper)
+                    obj_fn = getattr(task, "objective_fn_name", None)
+                    if obj_fn in ("ds1000_execution", "bigcode_execution", "humaneval_execution", "spider_sql"):
+                        prompt = task.prompt  # Already has task-specific format
+                    else:
+                        prompt = f"Write a Python script to solve this task:\n\n{task.prompt}\n\nYour script should print output that can be validated."
                     if previous_errors:
                         prompt += f"\n\nPrevious attempts failed. Fix these errors:\n"
                         for i, prev_err in enumerate(previous_errors):

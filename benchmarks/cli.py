@@ -118,6 +118,32 @@ def main():
     sb_parser.add_argument("--no-fixed-skill-order", action="store_true",
                          help="Disable fixed skill order (skills accumulate naturally)")
     
+    # CONCEPTDRIFT command
+    cd_parser = subparsers.add_parser("conceptdrift",
+                                      help="Run ConceptDriftBench: skill evolution under controlled concept drift")
+    cd_parser.add_argument("--backend", type=str, default="subprocess",
+                           choices=["opensandbox", "subprocess"],
+                           help="Backend to run on (default: subprocess)")
+    cd_parser.add_argument("--condition", type=str, default="all",
+                           choices=["no_skills", "runtime_evolved", "oracle_retrieval", "cross_family", "all"],
+                           help="Condition to test ('all' runs all 4)")
+    cd_parser.add_argument("--families", type=str, default=None,
+                           help="Comma-separated families to run (e.g. A,B). Default: all five")
+    cd_parser.add_argument("--limit", type=int, default=None,
+                           help="Max tasks per family (e.g. 3 for a quick test)")
+    cd_parser.add_argument("--output", type=str, default="results/conceptdrift",
+                           help="Output directory for results")
+    cd_parser.add_argument("--seed", type=int, default=42,
+                           help="Random seed for data generation (default: 42)")
+    cd_parser.add_argument("--source", type=str, default="synthetic",
+                           choices=["synthetic", "ds1000", "bigcode", "humaneval", "spider", "spider2", "spider2_sameschema", "spider2_hard"],
+                           help="Task source: synthetic (default), ds1000 (D), bigcode/humaneval (A), spider/spider2/spider2_sameschema/spider2_hard (C)")
+    cd_parser.add_argument("--llm-provider", type=str, default="openai",
+                           choices=["openai", "anthropic", "google", "azure_openai"],
+                           help="LLM provider")
+    cd_parser.add_argument("--llm-model", type=str, default="gpt-4o",
+                           help="LLM model name")
+
     # DEBUG command
     dbg_parser = subparsers.add_parser("debug", help="Debug a single task")
     dbg_parser.add_argument("--task", type=str, required=True, help="Task ID (e.g. compute_001)")
@@ -308,7 +334,86 @@ def main():
         print(f"\n✅ SkillsBench evaluation complete!")
         print(f"   Results directory: {output_dir}")
         return
-    
+
+    if args.command == "conceptdrift":
+        os.environ["MCP_BENCHMARK_MODE"] = "1"
+        os.environ.setdefault("LITELLM_LOG", "ERROR")
+
+        from .conceptdrift.runner import ConceptDriftRunner, CONCEPTDRIFT_CONDITIONS
+        from .conceptdrift.visualization import generate_all_figures
+        from .skillsbench.skill_conditions import SkillCondition
+        from pathlib import Path as _CDPath
+        import json as _cdjson
+
+        print("=" * 70)
+        print("ConceptDriftBench: Skill Evolution Under Controlled Concept Drift")
+        print("=" * 70)
+        print("\nHypothesis: execution-grounded skills outperform from-scratch")
+        print("generation specifically under moderate and major drift.\n")
+
+        # LLM config
+        llm_config = None
+        azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+        azure_deployment = (
+            os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT")
+            or os.environ.get("AZURE_OPENAI_CHAT_DEPLOYMENT_NAME")
+            or os.environ.get("AZURE_OPENAI_DEPLOYMENT_NAME")
+        )
+        provider = args.llm_provider
+        model = args.llm_model
+        if azure_endpoint and provider == "openai" and os.environ.get("AZURE_OPENAI_API_KEY"):
+            provider = "azure_openai"
+            model = azure_deployment or model
+        if provider == "azure_openai" and azure_deployment:
+            model = azure_deployment
+        llm_config = LLMConfig(
+            provider=provider,
+            model=model,
+            enabled=True,
+            api_key=os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"),
+            azure_endpoint=azure_endpoint,
+            azure_deployment_name=azure_deployment or (model if provider == "azure_openai" else None),
+            azure_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+        )
+
+        # Parse conditions
+        condition_map = {
+            "no_skills": SkillCondition.NO_SKILLS,
+            "runtime_evolved": SkillCondition.RUNTIME_EVOLVED_SKILLS,
+            "oracle_retrieval": SkillCondition.ORACLE_RETRIEVAL,
+            "cross_family": SkillCondition.CROSS_FAMILY,
+        }
+        if args.condition == "all":
+            conditions = CONCEPTDRIFT_CONDITIONS
+        else:
+            conditions = [condition_map[args.condition]]
+
+        families = args.families.split(",") if args.families else None
+
+        runner = ConceptDriftRunner(
+            backend=args.backend,
+            llm_config=llm_config,
+            output_dir=args.output,
+            seed=args.seed,
+            source=getattr(args, "source", "synthetic"),
+        )
+
+        all_metrics = runner.run_all_conditions(
+            conditions=conditions,
+            limit=args.limit,
+            families=families,
+        )
+
+        # Generate figures
+        print("\nGenerating figures...")
+        figs = generate_all_figures(all_metrics, output_dir=args.output)
+        for f in figs:
+            print(f"  📊 {f}")
+
+        print(f"\n✅ ConceptDriftBench evaluation complete!")
+        print(f"   Results directory: {args.output}")
+        return
+
     if args.command == "skill-evolution":
         # Import here to avoid circular imports
         from .skill_evolution_runner import SkillEvolutionRunner

@@ -48,6 +48,9 @@ benchmark = [
     "scapy>=2.5.0",
     "dpkt>=1.9.8",
 ]
+conceptdrift = [
+    "datasets>=2.14.0",
+]
 dev = [
     "mypy>=1.7.0",
     "ruff>=0.1.0",

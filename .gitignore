@@ -71,6 +71,10 @@ trials/
 workspace_monty_io/
 .tool_cache.json
 
+# Benchmark caches and results (reveal task content / experimental outcomes)
+benchmarks/skillsbench/.cache/
+results/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -376,7 +376,10 @@ Generated code:"""
 
             response = litellm.completion(**completion_params)
             
-            generated_code = response.choices[0].message.content.strip()
+            content = response.choices[0].message.content if response.choices else None
+            generated_code = (content or "").strip()
+            if not generated_code:
+                raise ValueError("LLM returned empty content")
             
             # Remove markdown code blocks if present
             if generated_code.startswith("```python"):

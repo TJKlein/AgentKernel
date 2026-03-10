@@ -101,6 +101,38 @@ class Task:
 
 
 @dataclass
+class DriftTask(Task):
+    """A benchmark task with concept drift metadata for ConceptDriftBench."""
+    family: str = ""
+    drift_level: str = "none"      # "none", "minor", "moderate", "major"
+    drift_type: str = "none"       # Taxonomy key: schema_rename, api_deprecation, etc.
+    drift_index: int = 1           # 1-6 within family
+    prior_task_id: Optional[str] = None
+    drift_description: str = ""
+    oracle_skill_id: Optional[str] = None
+    input_data: Optional[Dict[str, Any]] = None
+    ground_truth: Optional[Any] = None
+    objective_fn_name: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DriftTask":
+        base = Task.from_dict(data)
+        return cls(
+            **{k: v for k, v in base.__dict__.items()},
+            family=data.get("family", ""),
+            drift_level=data.get("drift_level", "none"),
+            drift_type=data.get("drift_type", "none"),
+            drift_index=data.get("drift_index", 1),
+            prior_task_id=data.get("prior_task_id"),
+            drift_description=data.get("drift_description", ""),
+            oracle_skill_id=data.get("oracle_skill_id"),
+            input_data=data.get("input_data"),
+            ground_truth=data.get("ground_truth"),
+            objective_fn_name=data.get("objective_fn_name"),
+        )
+
+
+@dataclass
 class TaskResult:
     """Result of a single benchmark task execution."""
     task_id: str
