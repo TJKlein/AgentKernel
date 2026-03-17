@@ -79,14 +79,17 @@ class Spider2HardLoader:
         # Sample deterministically
         rows = _select_tasks(filtered_rows, seed=seed, limit=n)
         
+        chain_len = len(SPIDER2_DRIFT_CHAIN)
         tasks: List[DriftTask] = []
         for i, row in enumerate(rows):
             idx = i + 1
-            drift_type, drift_level = SPIDER2_DRIFT_CHAIN[idx - 1][1], SPIDER2_DRIFT_CHAIN[idx - 1][2]
+            # Cycle drift levels when we have more tasks than chain entries (e.g. 30 tasks, 6 levels)
+            j = (idx - 1) % chain_len
+            drift_type, drift_level = SPIDER2_DRIFT_CHAIN[j][1], SPIDER2_DRIFT_CHAIN[j][2]
             task_id = f"C{idx}"
             prior = f"C{idx - 1}" if idx > 1 else None
             oracle = prior
-            
+
             tasks.append(_row_to_drift_task(
                 row=row, task_id=task_id, drift_index=idx,
                 drift_type=drift_type, drift_level=drift_level,

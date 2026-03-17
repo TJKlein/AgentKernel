@@ -283,7 +283,7 @@ This closed-loop creates an **accumulating advantage**: the more tasks the agent
 
 **Backend Compatibility:** Skill Evolution works across all MCPRuntime runtimes. Skills are automatically saved, discovered, and shared whether running containers via OpenSandbox or processing infinite-context chunks through the Recursive Language Model.
 
-> See [`examples/17_skill_evolution.py`](examples/17_skill_evolution.py) for an end-to-end demo showing `AgentHelper` + `SkillManager` setup.
+> See [`examples/17_skill_evolution.py`](examples/17_skill_evolution.py) for an end-to-end demo.
 
 ## 7. Recursive Language Models (RLM)
 

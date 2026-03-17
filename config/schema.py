@@ -52,9 +52,11 @@ class LLMConfig(BaseModel):
     temperature: float = Field(default=0.3, description="Temperature for code generation")
     max_tokens: int = Field(default=4000, description="Max tokens for code generation (legacy)")
     max_completion_tokens: Optional[int] = Field(default=None, description="Max completion tokens (for newer models)")
+    # Generic OpenAI-compatible endpoint (e.g. Azure AI Foundry, DeepSeek, local vLLM)
+    base_url: Optional[str] = Field(default=None, description="Custom base URL for OpenAI-compatible endpoints")
     # Azure OpenAI specific
     azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
-    azure_api_version: str = Field(default="2024-12-01-preview", description="Azure API version (e.g. 2024-12-01-preview for gpt-5.2-chat)")
+    azure_api_version: Optional[str] = Field(default="2024-12-01-preview", description="Azure API version (e.g. 2024-12-01-preview for gpt-5.2-chat). None = don't pass api-version (e.g. Azure AI Foundry).")
     azure_deployment_name: Optional[str] = Field(default=None, description="Azure deployment name")
 
 

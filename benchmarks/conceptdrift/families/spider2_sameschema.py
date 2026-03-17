@@ -83,11 +83,13 @@ class Spider2SameSchemaLoader:
         
         logger.info(f"Selected {len(selected)} tasks from database '{db_id}'")
         
-        # Create drift chain
+        # Create drift chain - cycle through drift types for N > 6
         tasks: List[DriftTask] = []
         for i, row in enumerate(selected):
             idx = i + 1
-            drift_type, drift_level = SPIDER2_DRIFT_CHAIN[idx - 1][1], SPIDER2_DRIFT_CHAIN[idx - 1][2]
+            # Cycle through drift chain (index 0-5, then repeat)
+            chain_idx = (idx - 1) % len(SPIDER2_DRIFT_CHAIN)
+            drift_type, drift_level = SPIDER2_DRIFT_CHAIN[chain_idx][1], SPIDER2_DRIFT_CHAIN[chain_idx][2]
             task_id = f"C{idx}"
             prior = f"C{idx - 1}" if idx > 1 else None
             oracle = prior
@@ -100,5 +102,11 @@ class Spider2SameSchemaLoader:
         
         return tasks
     
-    def get_drift_chain(self) -> List[tuple]:
-        return [(f"C{i}", dt, f"C{i-1}" if i > 1 else None) for i, (_, dt, _) in enumerate(SPIDER2_DRIFT_CHAIN, 1)]
+    def get_drift_chain(self, n: int = 6) -> List[tuple]:
+        """Get drift chain for N tasks (cycles through drift types)."""
+        chain = []
+        for i in range(1, n + 1):
+            chain_idx = (i - 1) % len(SPIDER2_DRIFT_CHAIN)
+            _, dt, _ = SPIDER2_DRIFT_CHAIN[chain_idx]
+            chain.append((f"C{i}", dt, f"C{i-1}" if i > 1 else None))
+        return chain

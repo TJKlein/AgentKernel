@@ -19,6 +19,24 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Pattern abstraction prompt for runtime-evolved skills (pattern-aware retrieval)
+ABSTRACTION_PROMPT = """You just solved a programming task. Extract the reusable meta-pattern.
+
+Code:
+{successful_code}
+
+Task:
+{task_description}
+
+Return ONLY valid JSON: no markdown fences, no code blocks, no extra text. Example:
+{{"pattern_name": "x", "pattern_description": "y", "key_operations": [], "transfer_conditions": "z"}}
+
+pattern_name: short identifier (e.g. sliding_window, frequency_counting, temporal_aggregation).
+pattern_description: 2-3 sentences on the strategy.
+key_operations: list of core operations used.
+transfer_conditions: when this pattern applies to new tasks.
+"""
+
 
 class SkillManager:
     """Manages reusable code skills for agents.
@@ -40,6 +58,8 @@ class SkillManager:
         self.skills_dir = self.workspace_dir / "skills"
         self.skills_file = self.skills_dir / "SKILLS.md"
         self.index_file = self.skills_dir / "skill_index.json"
+        self.pattern_metadata_file = self.skills_dir / "pattern_metadata.json"
+        self._embed_fn: Optional[Any] = None  # callable(text: str) -> List[float], set by runner for pattern retrieval
         
         # Create skills directory if it doesn't exist
         self.skills_dir.mkdir(parents=True, exist_ok=True)
@@ -261,16 +281,187 @@ Tags: {', '.join(tags or [])}
             skills.append(skill_entry)
         
         return sorted(skills, key=lambda x: x["name"])
-    
+
+    def _read_pattern_metadata(self) -> Dict[str, Dict[str, Any]]:
+        """Read pattern metadata for all skills (pattern_name, pattern_description, etc.)."""
+        if not self.pattern_metadata_file.exists():
+            return {}
+        try:
+            data = json.loads(self.pattern_metadata_file.read_text())
+            return data if isinstance(data, dict) else {}
+        except Exception as e:
+            logger.warning("Failed to read pattern_metadata.json: %s", e)
+            return {}
+
+    def _write_pattern_metadata(self, data: Dict[str, Dict[str, Any]]) -> None:
+        """Write pattern metadata dict to disk."""
+        self.pattern_metadata_file.write_text(json.dumps(data, indent=2))
+
+    def set_embed_fn(self, embed_fn: Optional[Any]) -> None:
+        """Set callable(text: str) -> List[float] for pattern-aware retrieval. Caller provides this."""
+        self._embed_fn = embed_fn
+
+    def extract_pattern_metadata(
+        self,
+        code: str,
+        task_description: str,
+        llm_callable: Any,
+    ) -> Dict[str, Any]:
+        """Call LLM to extract pattern abstraction from successful code. Returns dict with pattern_name, pattern_description, key_operations, transfer_conditions."""
+        prompt = ABSTRACTION_PROMPT.format(
+            successful_code=code[:8000] if len(code) > 8000 else code,
+            task_description=(task_description or "")[:2000],
+        )
+        try:
+            response = llm_callable(prompt)
+            text = response.strip()
+            if "```" in text:
+                text = re.sub(r"```(?:json)?\s*", "", text).split("```")[0].strip()
+            # Try parse; if malformed (trailing comma, unescaped newline), extract outer {...} by brace count
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                start = text.find("{")
+                if start >= 0:
+                    depth = 0
+                    for i in range(start, len(text)):
+                        if text[i] == "{":
+                            depth += 1
+                        elif text[i] == "}":
+                            depth -= 1
+                            if depth == 0:
+                                try:
+                                    return json.loads(text[start : i + 1])
+                                except json.JSONDecodeError:
+                                    break
+                return {}
+        except Exception as e:
+            logger.warning("Abstraction LLM failed: %s", e)
+            return {}
+
+    def extract_and_store_pattern_metadata(
+        self,
+        skill_name: str,
+        code: str,
+        task_description: str,
+        llm_callable: Any,
+    ) -> bool:
+        """Extract pattern via LLM and store in pattern_metadata.json. Returns True if stored."""
+        if not skill_name or not isinstance(skill_name, str) or skill_name.strip() == "":
+            logger.warning("extract_and_store_pattern_metadata: invalid skill_name (%r), skipping", skill_name)
+            return False
+        meta = self.extract_pattern_metadata(code, task_description, llm_callable)
+        if not meta or not meta.get("pattern_description"):
+            return False
+        data = self._read_pattern_metadata()
+        data[skill_name] = {
+            "pattern_name": meta.get("pattern_name", ""),
+            "pattern_description": meta.get("pattern_description", ""),
+            "key_operations": meta.get("key_operations", []),
+            "transfer_conditions": meta.get("transfer_conditions", ""),
+        }
+        self._write_pattern_metadata(data)
+        logger.info("Stored pattern metadata for %s: %s", skill_name, meta.get("pattern_name", ""))
+        return True
+
+    def get_skills_by_pattern_match(
+        self,
+        task_description: str,
+        top_k: int = 5,
+    ) -> List[str]:
+        """Return skill names ranked by pattern relevance to task_description. Uses _embed_fn if set."""
+        all_names = [s["name"] for s in self.list_skills()]
+        if not task_description or not self._embed_fn:
+            logger.info("[RUNTIME_DIAG] Pattern retrieval: falling back (no task_description or embed_fn), returning up to %s skills", top_k or "all")
+            return all_names[:top_k] if top_k else all_names
+        data = self._read_pattern_metadata()
+        if not data:
+            logger.info("[RUNTIME_DIAG] Pattern retrieval: falling back (no pattern_metadata.json), returning up to %s skills", top_k or "all")
+            return all_names[:top_k] if top_k else all_names
+        try:
+            # Only consider metadata for skills that actually exist (avoids "null" / stale keys)
+            valid_names = set(all_names)
+            data = {k: v for k, v in data.items() if k in valid_names}
+            if not data:
+                logger.info("[RUNTIME_DIAG] Pattern retrieval: no metadata for existing skills, returning up to %s", top_k or "all")
+                return all_names[:top_k] if top_k else all_names
+            logger.info("[RUNTIME_DIAG] Pattern retrieval: using pattern-aware retrieval with %d skills, top_k=%d", len(data), top_k)
+            task_emb = self._embed_fn(task_description[:8000])
+            if not task_emb:
+                return list(data.keys())[:top_k]
+            scores: List[Tuple[float, str]] = []
+            for name, meta in data.items():
+                desc = meta.get("pattern_description", "") or meta.get("transfer_conditions", "")
+                if not desc:
+                    continue
+                skill_emb = self._embed_fn(desc[:8000])
+                if not skill_emb:
+                    continue
+                # Cosine similarity
+                a, b = task_emb, skill_emb
+                dot = sum(x * y for x, y in zip(a, b))
+                na = sum(x * x for x in a) ** 0.5
+                nb = sum(y * y for y in b) ** 0.5
+                if na and nb:
+                    sim = dot / (na * nb)
+                    scores.append((sim, name))
+            scores.sort(key=lambda x: -x[0])
+            names = [name for _, name in scores[:top_k]]
+            return names if names else all_names[:top_k]
+        except Exception as e:
+            logger.warning("Pattern match failed, falling back to all skills: %s", e)
+            return all_names[:top_k] if top_k else all_names
+
+    def get_mean_alignment_score(self, task_description: str, top_k: int = 5) -> Optional[float]:
+        """
+        Return mean cosine similarity of the top-k retrieved skill patterns to task_description.
+        Used as a per-task structural alignment metric (high → skills are structurally relevant).
+        Returns None if embeddings are unavailable or no pattern metadata exists.
+        """
+        if not task_description or not self._embed_fn:
+            return None
+        data = self._read_pattern_metadata()
+        all_names = {s["name"] for s in self.list_skills()}
+        data = {k: v for k, v in data.items() if k in all_names}
+        if not data:
+            return None
+        try:
+            task_emb = self._embed_fn(task_description[:8000])
+            if not task_emb:
+                return None
+            scores: List[float] = []
+            for name, meta in data.items():
+                desc = meta.get("pattern_description", "") or meta.get("transfer_conditions", "")
+                if not desc:
+                    continue
+                skill_emb = self._embed_fn(desc[:8000])
+                if not skill_emb:
+                    continue
+                a, b = task_emb, skill_emb
+                dot = sum(x * y for x, y in zip(a, b))
+                na = sum(x * x for x in a) ** 0.5
+                nb = sum(y * y for y in b) ** 0.5
+                if na and nb:
+                    scores.append(dot / (na * nb))
+            if not scores:
+                return None
+            scores.sort(reverse=True)
+            top = scores[:top_k]
+            return round(sum(top) / len(top), 4)
+        except Exception as e:
+            logger.warning("get_mean_alignment_score failed: %s", e)
+            return None
+
     def clear_all_skills(self) -> None:
         """Remove all skills (for benchmark condition isolation).
-        Preserves __init__.py and resets SKILLS.md / skill_index.json.
+        Preserves __init__.py and resets SKILLS.md / skill_index.json / pattern_metadata.json.
         """
         for skill_file in self.skills_dir.glob("*.py"):
             if skill_file.name != "__init__.py":
                 skill_file.unlink()
         self._initialize_skills_file()
         self._write_skill_index([])
+        self._write_pattern_metadata({})
         logger.debug("Cleared all skills")
 
     def delete_skill(self, name: str) -> Dict[str, str]:
@@ -292,6 +483,12 @@ Tags: {', '.join(tags or [])}
         
         # Delete file
         skill_file.unlink()
+        
+        # Remove from pattern metadata if present
+        data = self._read_pattern_metadata()
+        if name in data:
+            del data[name]
+            self._write_pattern_metadata(data)
         
         # Remove from SKILLS.md
         self._remove_skill_from_registry(name)
@@ -329,18 +526,47 @@ Tags: {', '.join(tags or [])}
         
         return matching_skills
 
-    def get_skill_listing(self, skill_names: Optional[List[str]] = None) -> str:
+    def get_skill_listing(
+        self,
+        skill_names: Optional[List[str]] = None,
+        task_description: Optional[str] = None,
+        top_k: int = 5,
+        include_full_code: bool = False,
+    ) -> str:
         """Get a formatted string of available skills for prompt injection.
         
         Args:
             skill_names: If provided, only list these skills (for condition isolation).
+            task_description: If provided and _embed_fn is set, use pattern-aware retrieval (top_k skills by relevance).
+            top_k: Max number of skills to return when using pattern-aware retrieval.
+            include_full_code: If True, inject full skill code (like oracle) instead of name/description only.
         """
         skills = self.list_skills()
-        if skill_names is not None:
+        if task_description and self._embed_fn and skill_names is None:
+            top_names = self.get_skills_by_pattern_match(task_description, top_k=top_k)
+            names_set = set(top_names)
+            skills = [s for s in skills if s["name"] in names_set]
+            skills.sort(key=lambda s: top_names.index(s["name"]) if s["name"] in top_names else 999)
+        elif skill_names is not None:
             names_set = set(skill_names)
             skills = [s for s in skills if s["name"] in names_set]
         if not skills:
             return ""
+
+        if include_full_code:
+            header = (
+                "\n# Relevant skills from prior tasks (pattern-matched). Adapt as needed.\n"
+            )
+            parts = [header]
+            for skill in skills:
+                try:
+                    data = self.get_skill(skill["name"])
+                    code = data.get("code", "")
+                    if code:
+                        parts.append(f"# --- {skill['name']} ---\n{code}\n")
+                except Exception:
+                    continue
+            return "\n".join(parts) if len(parts) > 1 else ""
             
         lines = ["# Available skills (importable as `from skills.X import run`):"]
         for skill in skills:

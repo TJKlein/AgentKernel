@@ -2001,6 +2001,9 @@ class DriftTaskGenerator:
         output_dir: Optional[str] = None,
         seed: int = RANDOM_SEED,
         source: str = "synthetic",
+        task_limit: int = 30,
+        cluster_id: Optional[int] = None,
+        cluster_labels_path: Optional[str] = None,
     ):
         self.seed = seed
         self.stock_dir = Path(stock_dir) if stock_dir else None
@@ -2009,12 +2012,68 @@ class DriftTaskGenerator:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.source = source or "synthetic"
         self._tickers = ["AAPL", "MSFT", "AMZN", "NVDA", "TSLA"]
+        self.task_limit = task_limit
+        self.cluster_id = cluster_id
+        self.cluster_labels_path = Path(cluster_labels_path) if cluster_labels_path else None
 
     def generate(self) -> List[DriftTask]:
-        """Generate all 30 tasks across 5 families."""
+        """Generate all 30 tasks across 5 families (or only D when source=ds1000_pandas)."""
         random.seed(self.seed)
         all_tasks: List[DriftTask] = []
         data_dir = self.output_dir
+
+        if self.source == "ds1000_pandas":
+            logger.info("Generating Family D only: DS-1000 Pandas (cluster=%s)...", self.cluster_id)
+            from .families.ds1000 import DS1000FamilyLoader
+            loader = DS1000FamilyLoader()
+            all_tasks.extend(
+                loader.load_tasks(
+                    data_dir,
+                    seed=self.seed,
+                    limit=self.task_limit,
+                    cluster_id=self.cluster_id,
+                    cluster_labels_path=self.cluster_labels_path,
+                )
+            )
+            for t in all_tasks:
+                if not t.supported_backends:
+                    t.supported_backends = ["opensandbox", "subprocess"]
+            logger.info(f"Generated {len(all_tasks)} DS-1000 Pandas tasks (cluster {self.cluster_id})")
+            return all_tasks
+
+        if self.source == "ds1000_sklearn":
+            logger.info("Generating Family D only: DS-1000 Sklearn (ML API patterns)...")
+            from .families.ds1000 import DS1000SklearnFamilyLoader
+            loader = DS1000SklearnFamilyLoader()
+            all_tasks.extend(
+                loader.load_tasks(
+                    data_dir,
+                    seed=self.seed,
+                    limit=self.task_limit,
+                )
+            )
+            for t in all_tasks:
+                if not t.supported_backends:
+                    t.supported_backends = ["opensandbox", "subprocess"]
+            logger.info(f"Generated {len(all_tasks)} DS-1000 Sklearn tasks")
+            return all_tasks
+
+        if self.source == "ds1000_numpy":
+            logger.info("Generating Family D only: DS-1000 Numpy (array operation patterns)...")
+            from .families.ds1000 import DS1000NumpyFamilyLoader
+            loader = DS1000NumpyFamilyLoader()
+            all_tasks.extend(
+                loader.load_tasks(
+                    data_dir,
+                    seed=self.seed,
+                    limit=self.task_limit,
+                )
+            )
+            for t in all_tasks:
+                if not t.supported_backends:
+                    t.supported_backends = ["opensandbox", "subprocess"]
+            logger.info(f"Generated {len(all_tasks)} DS-1000 Numpy tasks")
+            return all_tasks
 
         if self.source == "bigcode":
             logger.info("Generating Family A: BigCodeBench (real Python tasks)...")
@@ -2047,12 +2106,12 @@ class DriftTaskGenerator:
             logger.info("Generating Family C: Spider 2.0 Hard / BIRD dev (moderate/challenging only)...")
             from .families.spider2_hard import Spider2HardLoader
             loader = Spider2HardLoader()
-            all_tasks.extend(loader.load_tasks(data_dir, seed=self.seed, limit=6))
+            all_tasks.extend(loader.load_tasks(data_dir, seed=self.seed, limit=self.task_limit))
         elif self.source == "spider2_sameschema":
             logger.info("Generating Family C: Spider 2.0 Same-Schema (controlled drift)...")
             from .families.spider2_sameschema import Spider2SameSchemaLoader
             loader = Spider2SameSchemaLoader()
-            all_tasks.extend(loader.load_tasks(data_dir, seed=self.seed, limit=6))
+            all_tasks.extend(loader.load_tasks(data_dir, seed=self.seed, limit=self.task_limit))
         else:
             logger.info("Generating Family C: Economic Indicators...")
             all_tasks.extend(_family_C())

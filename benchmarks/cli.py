@@ -125,8 +125,8 @@ def main():
                            choices=["opensandbox", "subprocess"],
                            help="Backend to run on (default: subprocess)")
     cd_parser.add_argument("--condition", type=str, default="all",
-                           choices=["no_skills", "runtime_evolved", "oracle_retrieval", "cross_family", "all"],
-                           help="Condition to test ('all' runs all 4)")
+                           choices=["no_skills", "self_generated", "static_library", "random_skills", "runtime_evolved", "retrieval_naive", "oracle_retrieval", "cross_family", "desc_only", "code_only", "shuffled_desc", "code_named_v2", "code_none", "all"],
+                           help="Condition to test ('all' runs the full NeurIPS set: no_skills, self_generated, static_library, retrieval_naive, runtime_evolved, oracle_retrieval)")
     cd_parser.add_argument("--families", type=str, default=None,
                            help="Comma-separated families to run (e.g. A,B). Default: all five")
     cd_parser.add_argument("--limit", type=int, default=None,
@@ -135,14 +135,40 @@ def main():
                            help="Output directory for results")
     cd_parser.add_argument("--seed", type=int, default=42,
                            help="Random seed for data generation (default: 42)")
+    cd_parser.add_argument("--seeds", type=str, default=None,
+                           help="Comma-separated seeds for multi-seed run (e.g. 42,43,44,45,46). Overrides --seed when set.")
+    cd_parser.add_argument("--num-seeds", type=int, default=None,
+                           help="Number of seeds to run (e.g. 5 => seeds 42..46). Ignored if --seeds is set.")
     cd_parser.add_argument("--source", type=str, default="synthetic",
-                           choices=["synthetic", "ds1000", "bigcode", "humaneval", "spider", "spider2", "spider2_sameschema", "spider2_hard"],
-                           help="Task source: synthetic (default), ds1000 (D), bigcode/humaneval (A), spider/spider2/spider2_sameschema/spider2_hard (C)")
+                           choices=["synthetic", "ds1000", "ds1000_pandas", "ds1000_sklearn", "ds1000_numpy", "bigcode", "humaneval", "spider", "spider2", "spider2_sameschema", "spider2_hard"],
+                           help="Task source: synthetic (default), ds1000 (D), ds1000_pandas (D by cluster), bigcode/humaneval (A), spider/... (C)")
+    cd_parser.add_argument("--cluster", type=int, default=None, metavar="ID",
+                           help="For --source ds1000_pandas: use only tasks from this cluster (0..k-1 from cluster_labels.json)")
+    cd_parser.add_argument("--cluster-labels", type=str, default="results/ds1000/cluster_labels.json",
+                           help="Path to cluster_labels.json from ds1000_cluster_pandas.py (default: results/ds1000/cluster_labels.json)")
     cd_parser.add_argument("--llm-provider", type=str, default="openai",
-                           choices=["openai", "anthropic", "google", "azure_openai"],
-                           help="LLM provider")
+                           choices=["openai", "anthropic", "google", "azure_openai", "azure_ai"],
+                           help="LLM provider (azure_ai = Azure AI Foundry serverless, e.g. Llama/Phi)")
     cd_parser.add_argument("--llm-model", type=str, default="gpt-4o",
-                           help="LLM model name")
+                           help="LLM model name (litellm prefix supported, e.g. 'deepseek/deepseek-chat')")
+    cd_parser.add_argument("--llm-base-url", type=str, default=None,
+                           help="Custom base URL for OpenAI-compatible endpoints (e.g. Azure AI Foundry, vLLM). Overrides provider routing.")
+    cd_parser.add_argument("--llm-api-key", type=str, default=None,
+                           help="API key for the LLM provider. Falls back to LLM_API_KEY / OPENAI_API_KEY env vars.")
+    cd_parser.add_argument("--check-embed", action="store_true",
+                           help="Check if embedding is enabled for pattern-aware retrieval, then exit")
+    cd_parser.add_argument("--report-only", action="store_true",
+                           help="Regenerate comparison_report.md from existing seed_* dirs (no execution). Use after selective rerun.")
+    cd_parser.add_argument("--rerun-stats", type=str, default=None, metavar="DIR",
+                           help="Rerun significance report only: load DIR's seed_* results, regenerate comparison_report.md (incl. McNemar p-value). Same as --output DIR --report-only. Requires scipy for p-values.")
+    cd_parser.add_argument("--preseed", type=str, default=None, metavar="PATH",
+                           help="Path to preseed_skills.json from a prior no_skills run (--export-preseed). Load this library before runtime_evolved/naive so retrieval chooses from 20-30 skills from task T1 (retrieval-quality experiment).")
+    cd_parser.add_argument("--export-preseed", type=str, default=None, metavar="DIR",
+                           help="When running no_skills, export successful (task_id, generated_code, task_prompt) to DIR/preseed_skills.json (or preseed_skills_seed_N.json per seed). Use as input for a second run with --preseed DIR/preseed_skills.json on a different task set.")
+    cd_parser.add_argument("--save-skills-to", type=str, default=None, metavar="DIR",
+                           help="Phase 1: after no_skills run, save all successful solutions as a full skill library in DIR/skills/ (with pattern metadata). Use with --condition no_skills. Example: libraries/sql_sameschema_library")
+    cd_parser.add_argument("--load-skills-from", type=str, default=None, metavar="DIR",
+                           help="Phase 2: load a pre-seeded library from DIR (expects DIR/skills/). No accumulation during run (preseed-only retrieval test). Use with --condition all to compare no_skills vs pattern-aware vs naive.")
 
     # DEBUG command
     dbg_parser = subparsers.add_parser("debug", help="Debug a single task")
@@ -339,19 +365,13 @@ def main():
         os.environ["MCP_BENCHMARK_MODE"] = "1"
         os.environ.setdefault("LITELLM_LOG", "ERROR")
 
-        from .conceptdrift.runner import ConceptDriftRunner, CONCEPTDRIFT_CONDITIONS
+        from .conceptdrift.runner import ConceptDriftRunner, CONCEPTDRIFT_CONDITIONS, _check_embed_enabled
         from .conceptdrift.visualization import generate_all_figures
         from .skillsbench.skill_conditions import SkillCondition
         from pathlib import Path as _CDPath
         import json as _cdjson
 
-        print("=" * 70)
-        print("ConceptDriftBench: Skill Evolution Under Controlled Concept Drift")
-        print("=" * 70)
-        print("\nHypothesis: execution-grounded skills outperform from-scratch")
-        print("generation specifically under moderate and major drift.\n")
-
-        # LLM config
+        # LLM config (needed for --check-embed and for run)
         llm_config = None
         azure_endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
         azure_deployment = (
@@ -361,47 +381,130 @@ def main():
         )
         provider = args.llm_provider
         model = args.llm_model
-        if azure_endpoint and provider == "openai" and os.environ.get("AZURE_OPENAI_API_KEY"):
-            provider = "azure_openai"
-            model = azure_deployment or model
-        if provider == "azure_openai" and azure_deployment:
-            model = azure_deployment
+        # --llm-base-url: custom OpenAI-compatible endpoint (Azure AI Foundry, vLLM, etc.)
+        # When set, skip Azure auto-detection and use openai provider with custom base_url
+        custom_base_url = getattr(args, "llm_base_url", None) or os.environ.get("LLM_BASE_URL")
+        custom_api_key = (
+            getattr(args, "llm_api_key", None)
+            or os.environ.get("LLM_API_KEY")
+            or os.environ.get("AZURE_OPENAI_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+        # Whether --llm-model was explicitly provided (not just the default)
+        explicit_model = args.llm_model != "gpt-4o"  # default is gpt-4o
+        azure_ai_endpoint = os.environ.get("AZURE_AI_ENDPOINT")
+        if not custom_base_url:
+            if provider == "azure_ai":
+                # Azure AI Foundry: use AZURE_AI_ENDPOINT (set in .env)
+                custom_base_url = azure_ai_endpoint or custom_base_url
+            elif azure_endpoint and provider == "openai" and os.environ.get("AZURE_OPENAI_API_KEY"):
+                provider = "azure_openai"
+                # Only fall back to env deployment name if user didn't specify a model
+                if not explicit_model:
+                    model = azure_deployment or model
+        # Deployment name: explicit --llm-model always wins over env var
+        effective_deployment = model if (explicit_model or not azure_deployment) else azure_deployment
         llm_config = LLMConfig(
             provider=provider,
             model=model,
             enabled=True,
-            api_key=os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY"),
-            azure_endpoint=azure_endpoint,
-            azure_deployment_name=azure_deployment or (model if provider == "azure_openai" else None),
-            azure_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview"),
+            api_key=custom_api_key,
+            base_url=custom_base_url,
+            azure_endpoint=azure_endpoint if not custom_base_url and provider == "azure_openai" else None,
+            azure_deployment_name=effective_deployment if provider == "azure_openai" else None,
+            azure_api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-12-01-preview") if provider == "azure_openai" else None,
         )
+
+        if getattr(args, "check_embed", False):
+            if getattr(llm_config, "provider", None) == "azure_openai":
+                ep = getattr(llm_config, "azure_endpoint", None) or os.environ.get("AZURE_OPENAI_ENDPOINT") or os.environ.get("AZURE_API_BASE")
+                dep = os.environ.get("AZURE_OPENAI_EMBED_DEPLOYMENT") or os.environ.get("AZURE_OPENAI_EMBEDDING_DEPLOYMENT") or "(default: text-embedding-ada-002)"
+                print("Azure embed config: endpoint =", ep)
+                print("Azure embed config: deployment =", dep)
+            ok, msg = _check_embed_enabled(llm_config)
+            print("Embedding check:", msg)
+            print("Pattern-aware retrieval:", "enabled" if ok else "disabled (will fall back to all skills)")
+            if not ok and getattr(llm_config, "provider", None) == "azure_openai":
+                print("Tip: In Azure Portal, open your resource -> Model deployments and use the exact deployment name (e.g. text-embedding-3-small). Set AZURE_OPENAI_EMBED_DEPLOYMENT to that name.")
+            return
+
+        print("=" * 70)
+        print("ConceptDriftBench: Skill Evolution Under Controlled Concept Drift")
+        print("=" * 70)
+        print("\nHypothesis: execution-grounded skills outperform from-scratch")
+        print("generation specifically under moderate and major drift.\n")
 
         # Parse conditions
         condition_map = {
             "no_skills": SkillCondition.NO_SKILLS,
+            "self_generated": SkillCondition.SELF_GENERATED_SKILLS,
+            "static_library": SkillCondition.STATIC_LIBRARY,
+            "random_skills": SkillCondition.RANDOM_SKILLS,
             "runtime_evolved": SkillCondition.RUNTIME_EVOLVED_SKILLS,
+            "retrieval_naive": SkillCondition.RUNTIME_EVOLVED_NAIVE,
             "oracle_retrieval": SkillCondition.ORACLE_RETRIEVAL,
+            # Legacy aliases
+            "runtime_evolved_naive": SkillCondition.RUNTIME_EVOLVED_NAIVE,
             "cross_family": SkillCondition.CROSS_FAMILY,
+            # Structural priming ablations (Figure 4)
+            "desc_only": SkillCondition.DESC_ONLY,
+            "code_only": SkillCondition.CODE_ONLY,
+            "shuffled_desc": SkillCondition.SHUFFLED_DESC,
+            # Anchoring mechanism ablations
+            "code_named_v2": SkillCondition.CODE_NAMED_V2,
+            "code_none": SkillCondition.CODE_NONE,
         }
         if args.condition == "all":
-            conditions = CONCEPTDRIFT_CONDITIONS
+            conditions = CONCEPTDRIFT_CONDITIONS  # NeurIPS set
         else:
             conditions = [condition_map[args.condition]]
 
+        source = getattr(args, "source", "synthetic")
         families = args.families.split(",") if args.families else None
+        if source in ("ds1000_pandas", "ds1000_sklearn", "ds1000_numpy") and not families:
+            families = ["D"]
+
+        # Resolve seeds list for multi-seed runs
+        seeds = None
+        if getattr(args, "seeds", None):
+            seeds = [int(s.strip()) for s in args.seeds.split(",") if s.strip()]
+        elif getattr(args, "num_seeds", None) and args.num_seeds and args.num_seeds > 1:
+            base = getattr(args, "seed", 42)
+            seeds = list(range(base, base + args.num_seeds))
+
+        if getattr(args, "rerun_stats", None):
+            args.output = args.rerun_stats
+            args.report_only = True
+
+        cluster_id = getattr(args, "cluster", None)
+        cluster_labels_path = getattr(args, "cluster_labels", None)
+        if source == "ds1000_pandas" and cluster_id is None:
+            print("Error: --source ds1000_pandas requires --cluster ID (e.g. --cluster 3).")
+            return 1
+        if source == "ds1000_pandas" and not cluster_labels_path:
+            cluster_labels_path = str(_CDPath("results/ds1000/cluster_labels.json"))
 
         runner = ConceptDriftRunner(
             backend=args.backend,
             llm_config=llm_config,
             output_dir=args.output,
             seed=args.seed,
-            source=getattr(args, "source", "synthetic"),
+            source=source,
+            cluster_id=cluster_id,
+            cluster_labels_path=cluster_labels_path,
+            preseed_path=getattr(args, "preseed", None),
+            export_preseed_dir=getattr(args, "export_preseed", None),
+            save_skills_to=getattr(args, "save_skills_to", None),
+            load_skills_from=getattr(args, "load_skills_from", None),
         )
 
+        report_only = getattr(args, "report_only", False)
         all_metrics = runner.run_all_conditions(
             conditions=conditions,
             limit=args.limit,
             families=families,
+            report_only=report_only,
+            seeds=seeds,
         )
 
         # Generate figures

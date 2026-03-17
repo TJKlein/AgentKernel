@@ -6,6 +6,8 @@ by any example or agent to generate Python code that uses discovered tools.
 
 import logging
 import os
+import re
+import time
 from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -63,11 +65,39 @@ class CodeGenerator:
             if llm_config.provider == "azure_openai":
                 if not self._model_name.startswith("azure/"):
                     self._model_name = f"azure/{self._model_name}"
-            
+            elif llm_config.provider == "azure_ai":
+                # Azure AI Foundry (serverless/pay-as-you-go models, e.g. Llama, Phi)
+                if not self._model_name.startswith("azure_ai/"):
+                    self._model_name = f"azure_ai/{self._model_name}"
+
             # Pre-cache api_key and endpoint from config or env
-            self._api_key = llm_config.api_key or os.environ.get("AZURE_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
-            self._api_base = llm_config.azure_endpoint or os.environ.get("AZURE_OPENAI_ENDPOINT")
-            self._api_version = llm_config.azure_api_version or os.environ.get("AZURE_OPENAI_API_VERSION")
+            self._api_key = (
+                llm_config.api_key
+                or os.environ.get("LLM_API_KEY")
+                or os.environ.get("AZURE_AI_API_KEY")
+                or os.environ.get("AZURE_OPENAI_API_KEY")
+                or os.environ.get("OPENAI_API_KEY")
+            )
+            # base_url: explicit field takes priority, then azure_ai endpoint, then azure_openai endpoint, then env
+            self._api_base = (
+                getattr(llm_config, "base_url", None)
+                or (os.environ.get("AZURE_AI_ENDPOINT") if llm_config.provider == "azure_ai" else None)
+                or llm_config.azure_endpoint
+                or os.environ.get("AZURE_OPENAI_ENDPOINT")
+            )
+            # azure_ai (Foundry) uses its own api-version; don't inherit AZURE_OPENAI_API_VERSION
+            if llm_config.provider == "azure_ai":
+                self._api_version = None
+            else:
+                self._api_version = llm_config.azure_api_version or os.environ.get("AZURE_OPENAI_API_VERSION")
+            # When using a custom base_url with a plain model name, litellm needs
+            # an "openai/" prefix to identify the provider
+            if (
+                getattr(llm_config, "base_url", None)
+                and self._model_name
+                and "/" not in self._model_name
+            ):
+                self._model_name = f"openai/{self._model_name}"
     
 
     def generate_from_prompt(
@@ -374,8 +404,41 @@ Generated code:"""
             else:
                 completion_params["max_tokens"] = token_val
 
-            response = litellm.completion(**completion_params)
-            
+            # Retry on rate limit (e.g. Azure "retry after 60 seconds") instead of falling back to rule-based
+            max_rate_limit_retries = 6  # 7 attempts total; persistent limits get ~7+ min to clear
+            last_exc = None
+            for attempt in range(max_rate_limit_retries + 1):
+                try:
+                    response = litellm.completion(**completion_params)
+                    break
+                except Exception as e:
+                    last_exc = e
+                    is_rate_limit = (
+                        "RateLimitError" in type(e).__name__
+                        or "rate limit" in str(e).lower()
+                        or "retry after" in str(e).lower()
+                    )
+                    if is_rate_limit and attempt < max_rate_limit_retries:
+                        err_str = str(e)
+                        # Parse "retry after X seconds" and wait at least that long (+5s margin)
+                        wait_seconds = 70
+                        if "retry after" in err_str.lower():
+                            m = re.search(r"retry after (\d+)\s*second", err_str, re.IGNORECASE)
+                            if m:
+                                wait_seconds = int(m.group(1)) + 5
+                                wait_seconds = max(10, min(wait_seconds, 120))  # clamp 10–120s
+                        # Slight backoff on later retries when limit is sticky
+                        if attempt >= 2:
+                            wait_seconds = int(wait_seconds * (1.2 ** (attempt - 2)))
+                            wait_seconds = min(wait_seconds, 180)
+                        logger.warning(
+                            "Rate limit hit, waiting %ds before retry (%d/%d): %s",
+                            wait_seconds, attempt + 1, max_rate_limit_retries, e,
+                        )
+                        time.sleep(wait_seconds)
+                        continue
+                    raise
+
             content = response.choices[0].message.content if response.choices else None
             generated_code = (content or "").strip()
             if not generated_code:
@@ -708,11 +771,13 @@ except FileNotFoundError:
 except Exception as e:
     print(f"❌ Error reading {filename}: {{e}}")""")
         
-        # Check for mount verification
-        if "mounted" in task_lower or "mount" in task_lower:
-            file_ops.append("""# Check if /workspace is mounted
+        # Check for mount verification (avoid "amount" / "amounts" — require "mount" or "mounted" as word)
+        mount_word = " mount " in task_lower or " mounted " in task_lower or task_lower.startswith("mount ") or task_lower.startswith("mounted ")
+        if mount_word:
+            # Use cwd or WORKSPACE_DIR so this works in subprocess (host path) and container (/workspace)
+            file_ops.append("""# Check if workspace is available
 import os
-workspace_path = "/workspace"
+workspace_path = os.environ.get("WORKSPACE_DIR", os.getcwd())
 if os.path.exists(workspace_path):
     print(f"✅ {workspace_path} exists and is mounted")
     try:

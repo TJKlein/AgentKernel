@@ -196,7 +196,11 @@ class SkillsBenchRunner(BenchmarkRunner):
         """
         # Get skill context for the current condition
         # Use task.name (original ID like "3d-scan-calc") not task.id (transformed like "3D_SCAN_CALC")
-        skill_context = self.condition_manager.get_skill_context(task.name)
+        # Pass task_description for pattern-aware retrieval (RUNTIME_EVOLVED / CROSS_FAMILY)
+        task_description = getattr(task, "prompt", None) or getattr(task, "description", None)
+        if self.condition in (SkillCondition.RUNTIME_EVOLVED_SKILLS, SkillCondition.CROSS_FAMILY) and not task_description:
+            logger.warning("[RUNTIME_DIAG] Task %s: task_description is None — pattern-aware retrieval may fall back to all skills", task.id)
+        skill_context = self.condition_manager.get_skill_context(task.name, task_description=task_description)
         
         # DEBUG: Log skill context availability
         if self.condition != SkillCondition.NO_SKILLS:
